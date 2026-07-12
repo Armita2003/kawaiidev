@@ -1,0 +1,6 @@
+{
+  "name": "KawaiiDev APKs",
+  "description": "A delightful Neo-Brutalist developer portfolio and APK stash for React Native and Expo experiments, featuring interactive project details and an admin deployment control panel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
