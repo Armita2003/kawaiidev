@@ -19,7 +19,9 @@ import {
   Clock,
   Dribbble,
   X,
-  Coffee
+  Coffee,
+  Bug,
+  ListChecks
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -27,9 +29,10 @@ interface AdminPanelProps {
   onAddProject: (newProject: APKProject) => void;
   onDeleteProject: (id: string) => void;
   onEditProject: (project: APKProject) => void;
-  activeTab: 'all_projects' | 'add_apk' | 'analytics' | 'settings';
-  onTabChange: (tab: 'all_projects' | 'add_apk' | 'analytics' | 'settings') => void;
+  activeTab: 'all_projects' | 'add_apk' | 'analytics' | 'settings' | 'bugs';
+  onTabChange: (tab: 'all_projects' | 'add_apk' | 'analytics' | 'settings' | 'bugs') => void;
   onProjectSelect: (project: APKProject) => void;
+  onToggleBugStatus: (projectId: string, bugId: string) => void;
 }
 
 export default function AdminPanel({
@@ -39,7 +42,8 @@ export default function AdminPanel({
   onEditProject,
   activeTab,
   onTabChange,
-  onProjectSelect
+  onProjectSelect,
+  onToggleBugStatus
 }: AdminPanelProps) {
   
   // States for general search/filter
@@ -60,7 +64,7 @@ export default function AdminPanel({
   // Simulated files upload states
   const [apkFileName, setApkFileName] = useState<string | null>(null);
   const [selectedApkFile, setSelectedApkFile] = useState<File | null>(null);
-  const [screenshotPreview, setScreenshotPreview] = useState<string>('https://lh3.googleusercontent.com/aida-public/AB6AXuAg4NZEjrQ0qQK7HIzxAV4BmqClNK3-1weZStVbm8H-P7rnraj2GmeqIqMBGa5nsAUvf47DMHB4kU184aOp1zTySBeVnzoXOGZLsu_NA2gU1a_VoSTuKW0BYWRD36Iu_JN9Kc3PnRGWM534xM8uL7D4Iujljc4UIHhq0X0-HVk1R3fGHdWSp74sSP8UR7F5RPeLHVHOABQxZlOte2Il_2sBtKuuJo0mMiqVVm42Cy8CYN060zJ53XPCMo90nabvqsF7rx9VWNNJFNHk');
+  const [screenshotPreview, setScreenshotPreview] = useState<string>('../src/assets/MainImage.jpg');
   const [coverUrl, setCoverUrl] = useState<string>('');
   
   // Custom screenshot editor states
@@ -194,7 +198,7 @@ export default function AdminPanel({
     setTags(['EXPO', 'HERMES']);
     setApkFileName(null);
     setSelectedApkFile(null);
-    setScreenshotPreview('https://lh3.googleusercontent.com/aida-public/AB6AXuAg4NZEjrQ0qQK7HIzxAV4BmqClNK3-1weZStVbm8H-P7rnraj2GmeqIqMBGa5nsAUvf47DMHB4kU184aOp1zTySBeVnzoXOGZLsu_NA2gU1a_VoSTuKW0BYWRD36Iu_JN9Kc3PnRGWM534xM8uL7D4Iujljc4UIHhq0X0-HVk1R3fGHdWSp74sSP8UR7F5RPeLHVHOABQxZlOte2Il_2sBtKuuJo0mMiqVVm42Cy8CYN060zJ53XPCMo90nabvqsF7rx9VWNNJFNHk');
+    setScreenshotPreview('../src/assets/MainImage.jpg');
     setCoverUrl('');
     setScreenshotFit('cover');
     setScreenshotScale(100);
@@ -656,7 +660,7 @@ export default function AdminPanel({
                       <button 
                         type="button"
                         onClick={() => {
-                          setScreenshotPreview('https://lh3.googleusercontent.com/aida-public/AB6AXuAg4NZEjrQ0qQK7HIzxAV4BmqClNK3-1weZStVbm8H-P7rnraj2GmeqIqMBGa5nsAUvf47DMHB4kU184aOp1zTySBeVnzoXOGZLsu_NA2gU1a_VoSTuKW0BYWRD36Iu_JN9Kc3PnRGWM534xM8uL7D4Iujljc4UIHhq0X0-HVk1R3fGHdWSp74sSP8UR7F5RPeLHVHOABQxZlOte2Il_2sBtKuuJo0mMiqVVm42Cy8CYN060zJ53XPCMo90nabvqsF7rx9VWNNJFNHk');
+                          setScreenshotPreview('../src/assets/MainImage.jpg');
                           setScreenshotFit('cover');
                           setScreenshotScale(100);
                           setScreenshotXOffset(0);
@@ -1044,6 +1048,67 @@ export default function AdminPanel({
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Tab: Bugs */}
+      {activeTab === 'bugs' && (
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="p-2 bg-error-container-custom border border-on-background rounded-lg">
+              <Bug className="w-5 h-5 text-error-custom" />
+            </span>
+            <h2 className="font-display text-xl md:text-2xl font-extrabold text-on-surface">
+              Bug reports by app
+            </h2>
+          </div>
+
+          <div className="space-y-4">
+            {projects.map((project) => (
+              <div key={project.id} className="rounded-2xl border-2 border-on-background bg-white p-5 shadow-[4px_4px_0px_0px_rgba(22,29,31,1)]">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <h3 className="font-display text-lg font-extrabold text-on-surface">{project.title}</h3>
+                    <p className="font-sans text-xs text-on-surface-variant">
+                      {(project.bugReports?.filter((report) => !report.resolved).length ?? 0)} active issue{(project.bugReports?.filter((report) => !report.resolved).length ?? 0) === 1 ? '' : 's'} / {(project.bugReports?.length ?? 0)} total
+                    </p>
+                  </div>
+                  <span className="rounded-full border-2 border-on-background bg-secondary-container px-3 py-1 font-display text-[10px] font-bold text-on-secondary-container">
+                    {project.status}
+                  </span>
+                </div>
+
+                {(project.bugReports?.length ?? 0) === 0 ? (
+                  <div className="rounded-xl border border-dashed border-on-background/40 p-3 text-center font-sans text-xs text-on-surface-variant">
+                    No bug reports for this app yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {project.bugReports?.map((report) => (
+                      <div key={report.id} className="rounded-xl border-2 border-on-background bg-surface-container-low p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-2">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(report.resolved)}
+                              onChange={() => onToggleBugStatus(project.id, report.id)}
+                              className="mt-0.5 h-4 w-4 cursor-pointer rounded border-2 border-on-background accent-primary"
+                            />
+                            <p className={`font-sans text-xs ${report.resolved ? 'text-on-surface-variant line-through opacity-70' : 'text-on-surface-variant'}`}>
+                              {report.description}
+                            </p>
+                          </div>
+                          <span className="shrink-0 rounded-full border border-on-background bg-white px-2 py-0.5 font-mono text-[9px] text-on-surface-variant">
+                            {report.createdAt}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -9,17 +9,24 @@ import {
   ClipboardCheck, 
   Sprout,
   Check,
-  AlertCircle
+  AlertCircle,
+  Bug,
+  Send,
+  Icon,
+  X
 } from 'lucide-react';
 
 interface ProjectDetailProps {
   project: APKProject;
   onBack: () => void;
   onDownloadAPK: (projectId: string) => void;
+  onReportBug: (projectId: string, description: string) => void;
 }
 
-export default function ProjectDetail({ project, onBack, onDownloadAPK }: ProjectDetailProps) {
+export default function ProjectDetail({ project, onBack, onDownloadAPK, onReportBug }: ProjectDetailProps) {
   const [copiedLink, setCopiedLink] = useState(false);
+  const [bugInput, setBugInput] = useState('');
+  const [showBugModal, setShowBugModal] = useState(false);
 
   const downloadUrl = typeof window !== 'undefined' 
     ? `${window.location.origin}/apk/${project.id}` 
@@ -43,6 +50,15 @@ export default function ProjectDetail({ project, onBack, onDownloadAPK }: Projec
       setCopiedLink(false);
     }, 2000);
   };
+
+  const handleSubmitBug = (e: React.FormEvent) => {
+    e.preventDefault();
+    onReportBug(project.id, bugInput);
+    setBugInput('');
+    setShowBugModal(false);
+  };
+
+  const visibleBugReports = (project.bugReports ?? []).filter((report) => !report.resolved);
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-8 py-8 animate-fadeIn">
@@ -181,7 +197,6 @@ export default function ProjectDetail({ project, onBack, onDownloadAPK }: Projec
             </section>
           </div>
 
-          {/* Download container box */}
           <div className="mt-4 p-6 bg-surface-container rounded-2xl border-2 border-on-background flex flex-col md:flex-row items-center gap-8 shadow-[6px_6px_0px_0px_rgba(22,29,31,1)]">
             <div className="flex-1 w-full text-center md:text-left">
               <h2 className="font-display text-2xl font-extrabold text-on-surface mb-2">Ready to try it?</h2>
@@ -198,7 +213,6 @@ export default function ProjectDetail({ project, onBack, onDownloadAPK }: Projec
               </button>
             </div>
 
-            {/* QR Code section */}
             <div className="flex flex-col items-center gap-2 shrink-0">
               <div 
                 onClick={handleCopyLink}
@@ -225,6 +239,45 @@ export default function ProjectDetail({ project, onBack, onDownloadAPK }: Projec
             </div>
           </div>
 
+          <div className="mt-4 p-6 bg-surface-container rounded-2xl border-2 border-on-background shadow-[6px_6px_0px_0px_rgba(22,29,31,1)]">
+            <div className="flex items-center justify-between gap-3 mb-4">
+              <div>
+                <h2 className="font-display text-xl font-extrabold text-on-surface">Bug reports</h2>
+                <p className="font-sans text-xs text-on-surface-variant">
+                  {visibleBugReports.length} active issue{visibleBugReports.length === 1 ? '' : 's'} for this app.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowBugModal(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-secondary-container text-on-secondary-container border-2 border-on-background rounded-xl font-display font-bold text-xs active-squish cursor-pointer"
+              >
+                <Bug className="w-4 h-4" />
+                Report bug
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {visibleBugReports.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-on-background/40 p-4 text-center text-[11px] font-sans text-on-surface-variant">
+                  No active bugs reported right now. The mascot is ready to hear about them.
+                </div>
+              ) : (
+                visibleBugReports.map((report) => (
+                  <div key={report.id} className="rounded-xl border-2 border-on-background bg-surface-container-low p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <p className={`font-sans text-xs ${report.resolved ? 'text-on-surface-variant line-through opacity-70' : 'text-on-surface-variant'}`}>
+                        {report.description}
+                      </p>
+                      <span className="shrink-0 rounded-full border border-on-background bg-white px-2 py-0.5 font-mono text-[9px] text-on-surface-variant">
+                        {report.createdAt}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
           {/* Technical Specs bento grid list */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
             <div className="p-4 border-2 border-on-background rounded-xl bg-surface-container-low text-center shadow-[2px_2px_0px_0px_rgba(22,29,31,1)]">
@@ -247,6 +300,54 @@ export default function ProjectDetail({ project, onBack, onDownloadAPK }: Projec
 
         </div>
       </div>
+
+      {showBugModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border-3 border-on-background bg-white p-6 shadow-[8px_8px_0px_0px_rgba(22,29,31,1)]">
+            <div className="mb-4 flex items-center justify-between gap-2">
+              <div >
+                <h3 className="font-display text-lg font-extrabold text-on-surface">Report a bug</h3>
+                <p className="font-sans text-xs text-on-surface-variant">Tell the mascot what went wrong with {project.title}.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowBugModal(false)}
+                className="h-10 aspect-square shrink-0 rounded-full border-2 border-on-background bg-surface-container p-2 text-on-surface"
+              >
+                
+              <X className="w-5 h-5 text-on-surface" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmitBug} className="space-y-4">
+              <label className="block font-display font-bold text-[11px] text-on-surface">What happened?</label>
+              <textarea
+                rows={4}
+                value={bugInput}
+                onChange={(e) => setBugInput(e.target.value)}
+                placeholder="Describe the issue you saw..."
+                className="w-full rounded-lg border-2 border-on-background bg-white p-2.5 font-sans text-xs outline-none"
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowBugModal(false)}
+                  className="rounded-lg border-2 border-on-background bg-surface-container px-4 py-2 font-display font-bold text-xs text-on-surface"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="flex items-center gap-2 rounded-lg border-2 border-on-background bg-primary px-4 py-2 font-display font-bold text-xs text-on-primary"
+                >
+                  <Send className="w-3.5 h-3.5" />
+                  Submit issue
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

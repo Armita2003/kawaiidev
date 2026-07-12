@@ -17,7 +17,7 @@ import { Sparkles, Terminal, Download, Check, Coffee, Heart, Lock, Unlock } from
 export default function App() {
   // Navigation states
   const [view, setView] = useState<'dashboard' | 'detail' | 'admin'>('dashboard');
-  const [adminTab, setAdminTab] = useState<'all_projects' | 'add_apk' | 'analytics' | 'settings'>('all_projects');
+  const [adminTab, setAdminTab] = useState<'all_projects' | 'add_apk' | 'analytics' | 'settings' | 'bugs'>('all_projects');
   
   // Admin authentication states
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => {
@@ -37,7 +37,11 @@ export default function App() {
     bugs: 0,
     coffeeLitres: 0
   });
-  const [likes, setLikes] = useState(0);
+  const [likes, setLikes] = useState<number>(() => {
+    const cachedLikes = localStorage.getItem('kawaii_likes');
+    const parsedLikes = Number(cachedLikes);
+    return Number.isFinite(parsedLikes) && parsedLikes >= 0 ? parsedLikes : 0;
+  });
   const [systemHealth, setSystemHealth] = useState(82);
 
   // Download simulation dialog state
@@ -79,6 +83,13 @@ export default function App() {
       localStorage.setItem('kawaii_stats', JSON.stringify(stats));
     }
   }, []);
+
+  useEffect(() => {
+    setStats((prevStats) => ({
+      ...prevStats,
+      bugs: projects.reduce((count, project) => count + (project.bugReports?.filter((report) => !report.resolved).length ?? 0), 0)
+    }));
+  }, [projects]);
 
   // Update System Health based on status distributions
   useEffect(() => {
@@ -150,7 +161,11 @@ export default function App() {
   };
 
   const handleLikeHeart = () => {
-    setLikes((prevLikes) => prevLikes + 1);
+    setLikes((prevLikes) => {
+      const updatedLikes = prevLikes + 1;
+      localStorage.setItem('kawaii_likes', String(updatedLikes));
+      return updatedLikes;
+    });
     setStats((prevStats) => {
       const updated = {
         ...prevStats,
@@ -158,6 +173,61 @@ export default function App() {
       };
       localStorage.setItem('kawaii_stats', JSON.stringify(updated));
       return updated;
+    });
+  };
+
+  const handleReportBug = (projectId: string, description: string) => {
+    const trimmedDescription = description.trim();
+    if (!trimmedDescription) return;
+
+    const project = projects.find((item) => item.id === projectId);
+    if (!project) return;
+
+    const updatedProjects = projects.map((item) =>
+      item.id === projectId
+        ? {
+            ...item,
+            bugReports: [
+              ...(item.bugReports ?? []),
+              {
+                id: `${item.id}-${Date.now()}`,
+                description: trimmedDescription,
+                createdAt: new Date().toLocaleString(),
+                resolved: false
+              }
+            ]
+          }
+        : item
+    );
+
+    saveProjects(updatedProjects);
+    setSelectedProject((currentSelectedProject) => {
+      if (currentSelectedProject?.id === projectId) {
+        return updatedProjects.find((item) => item.id === projectId) ?? currentSelectedProject;
+      }
+      return currentSelectedProject;
+    });
+    triggerToast(`🐛 Bug reported for ${project.title}.`);
+  };
+
+  const handleToggleBugStatus = (projectId: string, bugId: string) => {
+    const updatedProjects = projects.map((item) => {
+      if (item.id !== projectId) return item;
+
+      return {
+        ...item,
+        bugReports: (item.bugReports ?? []).map((report) =>
+          report.id === bugId ? { ...report, resolved: !report.resolved } : report
+        )
+      };
+    });
+
+    saveProjects(updatedProjects);
+    setSelectedProject((currentSelectedProject) => {
+      if (currentSelectedProject?.id === projectId) {
+        return updatedProjects.find((item) => item.id === projectId) ?? currentSelectedProject;
+      }
+      return currentSelectedProject;
     });
   };
 
@@ -309,6 +379,7 @@ export default function App() {
               project={selectedProject} 
               onBack={() => setSelectedProject(null)} 
               onDownloadAPK={handleDownloadAPK}
+              onReportBug={handleReportBug}
             />
           </main>
         ) : view === 'admin' ? (
@@ -349,6 +420,7 @@ export default function App() {
                   activeTab={adminTab}
                   onTabChange={setAdminTab}
                   onProjectSelect={(proj) => setSelectedProject(proj)}
+                  onToggleBugStatus={handleToggleBugStatus}
                 />
               </main>
             </div>

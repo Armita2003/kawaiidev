@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Coffee, Shield, Eye, Lock, Unlock, Menu, X, LayoutGrid } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
+const HEADER_LOGO_URL = '../src/assets/MainImage.jpg';
+
 interface HeaderProps {
   currentView: 'dashboard' | 'detail' | 'admin' | 'add_apk';
   onViewChange: (view: 'dashboard' | 'admin') => void;
@@ -35,7 +37,7 @@ export default function Header({
   const isAdmin = currentView === 'admin' || currentView === 'add_apk';
 
   return (
-    <header id="app-header" className="bg-surface-container-lowest sticky top-0 z-40 w-full border-b-2 border-on-background shadow-[4px_4px_0px_0px_rgba(22,29,31,1)]">
+    <header id="app-header" className="bg-surface-container-lowest sticky top-0 z-40 w-full border-b-2 border-on-background ">
       <div className="flex justify-between items-center px-4 md:px-8 py-3 max-w-7xl mx-auto">
         <div 
           id="header-logo"
@@ -45,7 +47,7 @@ export default function Header({
           }} 
           className="font-display text-lg sm:text-xl md:text-2xl text-primary font-bold cursor-pointer hover:scale-105 active:scale-95 duration-100 flex items-center gap-1.5 sm:gap-2"
         >
-          <span className="text-base sm:text-xl md:text-2xl">🐾</span> 
+          <img src={HEADER_LOGO_URL} alt="KawaiiDev logo" className="h-8 w-8 sm:h-10 sm:w-10 rounded-full border-2 border-on-background object-cover" />
           <span>KawaiiDev <span className="hidden xs:inline">APKs</span></span>
         </div>
 

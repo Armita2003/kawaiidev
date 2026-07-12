@@ -1,9 +1,9 @@
 import React from 'react';
-import { LayoutGrid, PlusCircle, BarChart3, Settings, Shield, Activity } from 'lucide-react';
+import { LayoutGrid, PlusCircle, BarChart3, Settings, Shield, Activity, Bug } from 'lucide-react';
 
 interface SidebarProps {
-  activeTab: 'all_projects' | 'add_apk' | 'analytics' | 'settings';
-  onTabChange: (tab: 'all_projects' | 'add_apk' | 'analytics' | 'settings') => void;
+  activeTab: 'all_projects' | 'add_apk' | 'analytics' | 'settings' | 'bugs';
+  onTabChange: (tab: 'all_projects' | 'add_apk' | 'analytics' | 'settings' | 'bugs') => void;
   systemHealth: number;
 }
 
@@ -16,7 +16,7 @@ export default function Sidebar({ activeTab, onTabChange, systemHealth }: Sideba
           <div className="w-12 h-12 bg-primary-container rounded-xl border-2 border-on-background squishy-shadow-sm flex items-center justify-center overflow-hidden">
             <img 
               className="w-full h-full object-cover" 
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXIL5-W79660GTWzFe2T5stLZV-p0vlK1ImRssomeglNk8C8howITQMp1MBKaaMIyO6SR0imPe1a06FtTXtJT4iRMS1Ni37_wxpaeJ4srOu9J6VoQc6vtuRc9Rmba-wADd9_WFamlNKvGTdrrS4qzD8iVJuX3WYp1b3Y5fR4dZRDanDnU4k1C0H9imy0mLfcBbnuoNN-SbLFiOXepyy7lkhq-UO3vFpYqEwTIRCvsI7U9dw9HeQGxySogxAJmFmxMuRfmRDrGUtx0c" 
+              src="../src/assets/MainImage.jpg" 
               alt="Mascot Dino" 
             />
           </div>
@@ -69,6 +69,19 @@ export default function Sidebar({ activeTab, onTabChange, systemHealth }: Sideba
             <span>Analytics</span>
           </button>
 
+          {/* Bugs */}
+          <button
+            onClick={() => onTabChange('bugs')}
+            className={`flex items-center gap-3 px-3 py-2 text-sm font-display font-bold rounded-xl border-2 transition-all active-squish whitespace-nowrap ${
+              activeTab === 'bugs'
+                ? 'bg-secondary-container text-on-secondary-container border-on-background shadow-[2px_2px_0px_0px_rgba(22,29,31,1)]'
+                : 'border-transparent hover:bg-secondary-fixed-dim/40 text-on-surface-variant hover:text-on-surface'
+            }`}
+          >
+            <Bug className="w-4 h-4 shrink-0" />
+            <span>Bugs</span>
+          </button>
+
           {/* Settings */}
           <button
             onClick={() => onTabChange('settings')}
@@ -110,7 +123,7 @@ export default function Sidebar({ activeTab, onTabChange, systemHealth }: Sideba
         <div className="flex items-center gap-2.5 pt-2 border-t border-on-background/10 md:border-t-0">
           <img 
             className="w-9 h-9 rounded-full border-2 border-on-background shrink-0"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_SDwTOQMMiLhbLB-xuXwipxdh2x_PgnH8t1Z7eD54YIG_1bKbFoKzYt1Nr8v2nTpUb8KXVARnYuYYmZ0q-AMvh0P7LGm61IlBjJlFCSyaovX6u624fpvl_aAFpwlFzACUdO2wb9_xgII392-huCBUr6XJ_gTyNJstAAymSi92S2GXDG-6ZobeUnlQRNx9pdRrL54xovikE6TQAu6_agUFRxClAX7_buFFWGRHPNw0XtmugDk07k-rYte1VDnRLBLPsG6zXdVyJB8o" 
+            src="../src/assets/MainImage.jpg" 
             alt="Mascot Avatar" 
           />
           <div>

@@ -75,10 +75,13 @@ export default function Dashboard({
       {/* Hero Section */}
       <section className="py-12 md:py-20 flex flex-col md:flex-row items-center gap-12">
         <div className="flex-1 text-center md:text-left">
-          <h1 className="font-display text-4xl md:text-5.5xl leading-tight mb-6 text-primary font-extrabold">
-            KawaiiDev's APK Stash - <br />
-            <span className="text-secondary">Now with 20% more bugs!</span>
-          </h1>
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-6">
+            {/* <img src={LANDING_LOGO_URL} alt="KawaiiDev logo" className="h-12 w-12 rounded-full border-2 border-on-background object-cover shadow-[3px_3px_0px_0px_rgba(22,29,31,1)]" /> */}
+            <h1 className="font-display text-4xl md:text-5.5xl leading-tight text-primary font-extrabold">
+              KawaiiDev's APK Stash - <br />
+              <span className="text-secondary">Now with 20% more bugs!</span>
+            </h1>
+          </div>
           <p className="font-sans text-base md:text-lg text-on-surface-variant mb-8 max-w-2xl leading-relaxed">
             Welcome to the digital sandbox where code somersaults into chaos. Explore my collection of React Native and Expo experiments, each crafted with love, caffeine, and a questionable amount of sanity.
           </p>
@@ -126,7 +129,7 @@ export default function Dashboard({
           <div className="w-full aspect-square bg-tertiary-container border-2 border-on-background rounded-[40px] shadow-[8px_8px_0px_0px_rgba(22,29,31,1)] flex items-center justify-center overflow-hidden">
             <div 
               className="w-full h-full bg-cover bg-center hover:scale-105 duration-300 transition-transform" 
-              style={{ backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuBEfxAzLdbTtMc7d-Oa5Xay29PPxdwj7SZoAGde_hXeIxghj96iI185IuHb1P5OcNKF41pKlbrh2OkzDWsc5aK3gC4Pie_gOOBqw80WLhyaAdYhf-0H38q91p6pM7017fcg22xfnx9_uwr_PlD0QWSh4WZvmHSqHU3gDmNvu5BoFAtvOWbd4cZ-Bb3FWRRC508s2r_xVZF_53sjIEPRhLxmV9HH9N7wQAIFEBwiXDnDHpFOPs881YOl8IUPC2euFlFcL0F5ZEqqN83i')` }}
+              style={{ backgroundImage: `url('../src/assets/MainImage.jpg')` }}
               title="KawaiiDev mascot bot sitting on blocks"
             ></div>
           </div>

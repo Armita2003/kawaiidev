@@ -1,5 +1,12 @@
 export type AppStatus = 'Live' | 'Buggy' | 'Sleeping';
 
+export interface BugReport {
+  id: string;
+  description: string;
+  createdAt: string;
+  resolved?: boolean;
+}
+
 export interface APKProject {
   id: string;
   title: string;
@@ -27,6 +34,7 @@ export interface APKProject {
   screenshotBgColor?: string;
   screenshotRotate?: number;
   coverUrl?: string;
+  bugReports?: BugReport[];
 }
 
 export interface GlobalStats {

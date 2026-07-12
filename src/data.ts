@@ -16,7 +16,7 @@ export const INITIAL_PROJECTS: APKProject[] = [
     license: 'MIT',
     downloads: 480,
     status: 'Live',
-    screenshotUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCMdsWi_Qol-FFglvzGo6DVs2Fau8G4BR-gMRToK7O_lE2au3FiYyVDUY9mRA4KnlnrZNaCvdHq7_IXWlx9Ymvq0hwItLCgPumvqdMyTvBd_s4gPO8wPtpDmrePrpDhP7aXKbVcha39KCiP1USPqxcOvZoJwLJEi_oFMR6WM8pIpNwebBuOboY265iDzC7L1H3KR2rbw0LB5v_BdSufYOH8qEw_tso-wjvWaZms9Q40aAUYPXdP3GM2djB5tipfKxijzy5kRxwDsY3Y',
+    screenshotUrl: './src/assets/MainImage.jpg',
     iconType: 'alarm',
     worksGreat: [
       'Ultra-smooth 60fps animations that make your GPU smile.',
@@ -44,7 +44,7 @@ export const INITIAL_PROJECTS: APKProject[] = [
     license: 'MIT',
     downloads: 320,
     status: 'Live',
-    screenshotUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAg4NZEjrQ0qQK7HIzxAV4BmqClNK3-1weZStVbm8H-P7rnraj2GmeqIqMBGa5nsAUvf47DMHB4kU184aOp1zTySBeVnzoXOGZLsu_NA2gU1a_VoSTuKW0BYWRD36Iu_JN9Kc3PnRGWM534xM8uL7D4Iujljc4UIHhq0X0-HVk1R3fGHdWSp74sSP8UR7F5RPeLHVHOABQxZlOte2Il_2sBtKuuJo0mMiqVVm42Cy8CYN060zJ53XPCMo90nabvqsF7rx9VWNNJFNHk',
+    screenshotUrl: './src/assets/MainImage.jpg',
     iconType: 'coffee',
     worksGreat: [
       'Intelligent caffeine half-life decay simulation.',
@@ -72,7 +72,7 @@ export const INITIAL_PROJECTS: APKProject[] = [
     license: 'Apache 2.0',
     downloads: 140,
     status: 'Buggy',
-    screenshotUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAg4NZEjrQ0qQK7HIzxAV4BmqClNK3-1weZStVbm8H-P7rnraj2GmeqIqMBGa5nsAUvf47DMHB4kU184aOp1zTySBeVnzoXOGZLsu_NA2gU1a_VoSTuKW0BYWRD36Iu_JN9Kc3PnRGWM534xM8uL7D4Iujljc4UIHhq0X0-HVk1R3fGHdWSp74sSP8UR7F5RPeLHVHOABQxZlOte2Il_2sBtKuuJo0mMiqVVm42Cy8CYN060zJ53XPCMo90nabvqsF7rx9VWNNJFNHk',
+    screenshotUrl: './src/assets/MainImage.jpg',
     iconType: 'dog',
     worksGreat: [
       'Understands Golden Retrievers at 98.2% lexical precision.',
@@ -100,7 +100,7 @@ export const INITIAL_PROJECTS: APKProject[] = [
     license: 'MIT',
     downloads: 95,
     status: 'Live',
-    screenshotUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAg4NZEjrQ0qQK7HIzxAV4BmqClNK3-1weZStVbm8H-P7rnraj2GmeqIqMBGa5nsAUvf47DMHB4kU184aOp1zTySBeVnzoXOGZLsu_NA2gU1a_VoSTuKW0BYWRD36Iu_JN9Kc3PnRGWM534xM8uL7D4Iujljc4UIHhq0X0-HVk1R3fGHdWSp74sSP8UR7F5RPeLHVHOABQxZlOte2Il_2sBtKuuJo0mMiqVVm42Cy8CYN060zJ53XPCMo90nabvqsF7rx9VWNNJFNHk',
+    screenshotUrl: './src/assets/MainImage.jpg',
     iconType: 'bug',
     worksGreat: [
       'Dynamic glitch simulator with genuine stack-trace rendering.',
@@ -121,14 +121,14 @@ export const INITIAL_PROJECTS: APKProject[] = [
     longDescription: 'Are you a professional sleep champion? Nap Master Pro is designed for heavy sleepers. It records high-definition snoring audio to shame you later, drains battery with custom native vibrations, and forces you to plead for mercy or answer rocket science math to snooze.',
     category: 'Health',
     framework: 'Native Modules',
-    tags: ['PREMIUM CRASHES', 'NATIVE AUDIO', 'MATH_ENGINE'],
+    tags: [ 'NATIVE AUDIO', 'MATH_ENGINE'],
     size: '42.5 MB',
     minApi: 'Android 10',
     updatedAt: '2 days ago',
     license: 'Proprietary',
     downloads: 1200,
     status: 'Sleeping',
-    screenshotUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAzy43Eweks2RXEencVw0niZOY-1RJmAKMGibbZAL2mehJLhcepRPqOzheVzuCcEFtnzitEIMkCYcrw-6A8i_fcxMrfVS8VGoE-U66Dl6JNE2zOMK7BPTNMy7INkH5jNmEXMKLKHfkJpFA2kKAGcwTOLsHC22HMVzLES4qmTbHjfhKCXyKplEmMTk5NOvquVjI93BARxjQMDs5ThsYsumDPmrW2Bc0nebvyxvcKjVGtm_XSngNrjgZ9tVFmJZ89t39ri803KTrE5aeE',
+    screenshotUrl: './src/assets/MainImage.jpg',
     iconType: 'alarm',
     worksGreat: [
       'Extreme volume crescendo that ignores physical side-buttons.',
@@ -156,7 +156,7 @@ export const INITIAL_PROJECTS: APKProject[] = [
     license: 'MIT',
     downloads: 250,
     status: 'Sleeping',
-    screenshotUrl: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAg4NZEjrQ0qQK7HIzxAV4BmqClNK3-1weZStVbm8H-P7rnraj2GmeqIqMBGa5nsAUvf47DMHB4kU184aOp1zTySBeVnzoXOGZLsu_NA2gU1a_VoSTuKW0BYWRD36Iu_JN9Kc3PnRGWM534xM8uL7D4Iujljc4UIHhq0X0-HVk1R3fGHdWSp74sSP8UR7F5RPeLHVHOABQxZlOte2Il_2sBtKuuJo0mMiqVVm42Cy8CYN060zJ53XPCMo90nabvqsF7rx9VWNNJFNHk',
+    screenshotUrl: './src/assets/MainImage.jpg',
     iconType: 'vibe',
     worksGreat: [
       'Instant detection of keyboard-slapping frequencies.',
