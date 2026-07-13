@@ -1,7 +1,3 @@
-const DB_NAME = 'KawaiiApkDatabase';
-const DB_VERSION = 1;
-const STORE_NAME = 'apkFiles';
-
 export interface StoredApk {
   projectId: string;
   blob: Blob;
@@ -9,82 +5,47 @@ export interface StoredApk {
   size: string;
 }
 
-let dbPromise: Promise<IDBDatabase> | null = null;
-
-function getDB(): Promise<IDBDatabase> {
-  if (dbPromise) return dbPromise;
-
-  dbPromise = new Promise((resolve, reject) => {
-    if (typeof indexedDB === 'undefined') {
-      reject(new Error('IndexedDB is not supported in this environment'));
-      return;
-    }
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'projectId' });
-      }
-    };
-
-    request.onsuccess = () => {
-      resolve(request.result);
-    };
-
-    request.onerror = () => {
-      reject(request.error);
-    };
-  });
-
-  return dbPromise;
-}
-
 export async function saveApkFile(projectId: string, blob: Blob, fileName: string, size: string): Promise<void> {
-  const db = await getDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.put({ projectId, blob, fileName, size });
-
-    transaction.oncomplete = () => resolve();
-    transaction.onerror = () => reject(transaction.error);
-    request.onerror = () => reject(request.error);
+  const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'X-File-Name': encodeURIComponent(fileName),
+      'X-File-Size': size,
+    },
+    body: blob,
   });
+  if (!res.ok) {
+    throw new Error(`Failed to upload APK: ${res.status}`);
+  }
 }
 
 export async function getApkFile(projectId: string): Promise<StoredApk | null> {
   try {
-    const db = await getDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.get(projectId);
+    const headRes = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, { method: 'HEAD' });
+    if (!headRes.ok) return null;
 
-      request.onsuccess = () => {
-        resolve(request.result || null);
-      };
-      request.onerror = () => reject(request.error);
-    });
+    const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`);
+    if (!res.ok) return null;
+
+    const blob = await res.blob();
+    const fileName = decodeURIComponent(res.headers.get('X-File-Name') || `${projectId}.apk`);
+    const size = res.headers.get('X-File-Size') || '';
+
+    return { projectId, blob, fileName, size };
   } catch (err) {
-    console.warn('IndexedDB retrieval failed:', err);
+    console.warn('APK retrieval failed:', err);
     return null;
   }
 }
 
 export async function deleteApkFile(projectId: string): Promise<void> {
   try {
-    const db = await getDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.delete(projectId);
-
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-      request.onerror = () => reject(request.error);
-    });
+    const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, { method: 'DELETE' });
+    if (!res.ok) {
+      throw new Error(`Failed to delete APK: ${res.status}`);
+    }
   } catch (err) {
-    console.warn('IndexedDB delete failed:', err);
+    console.warn('APK delete failed:', err);
   }
 }

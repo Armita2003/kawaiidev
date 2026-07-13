@@ -16,7 +16,7 @@ export const INITIAL_PROJECTS: APKProject[] = [
     license: 'MIT',
     downloads: 480,
     status: 'Live',
-    screenshotUrl: '/images/MainImage.jpg',
+    screenshotUrl: '/assets/images/MainImage.jpg',
     iconType: 'alarm',
     worksGreat: [
       'Ultra-smooth 60fps animations that make your GPU smile.',
@@ -44,7 +44,7 @@ export const INITIAL_PROJECTS: APKProject[] = [
     license: 'MIT',
     downloads: 320,
     status: 'Live',
-    screenshotUrl: '/images/MainImage.jpg',
+    screenshotUrl: '/assets/images/MainImage.jpg',
     iconType: 'coffee',
     worksGreat: [
       'Intelligent caffeine half-life decay simulation.',
@@ -72,7 +72,7 @@ export const INITIAL_PROJECTS: APKProject[] = [
     license: 'Apache 2.0',
     downloads: 140,
     status: 'Buggy',
-    screenshotUrl: '/images/MainImage.jpg',
+    screenshotUrl: '/assets/images/MainImage.jpg',
     iconType: 'dog',
     worksGreat: [
       'Understands Golden Retrievers at 98.2% lexical precision.',
@@ -100,7 +100,7 @@ export const INITIAL_PROJECTS: APKProject[] = [
     license: 'MIT',
     downloads: 95,
     status: 'Live',
-    screenshotUrl: '/images/logo.png',
+    screenshotUrl: '/assets/images/logo.png',
     iconType: 'bug',
     worksGreat: [
       'Dynamic glitch simulator with genuine stack-trace rendering.',
@@ -128,7 +128,7 @@ export const INITIAL_PROJECTS: APKProject[] = [
     license: 'Proprietary',
     downloads: 1200,
     status: 'Sleeping',
-    screenshotUrl: '/images/MainImage.jpg',
+    screenshotUrl: '/MainImage.jpg',
     iconType: 'alarm',
     worksGreat: [
       'Extreme volume crescendo that ignores physical side-buttons.',
@@ -156,7 +156,7 @@ export const INITIAL_PROJECTS: APKProject[] = [
     license: 'MIT',
     downloads: 250,
     status: 'Sleeping',
-    screenshotUrl: '/images/MainImage.jpg',
+    screenshotUrl: '/assets/images/MainImage.jpg',
     iconType: 'vibe',
     worksGreat: [
       'Instant detection of keyboard-slapping frequencies.',

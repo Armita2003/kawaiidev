@@ -12,6 +12,7 @@ import AdminPanel from './components/AdminPanel';
 import { APKProject, GlobalStats } from './types';
 import { INITIAL_PROJECTS } from './data';
 import { getApkFile } from './utils/apkDb';
+import { fetchProjects, saveProjects, fetchStats, saveStats } from './utils/api';
 import { Sparkles, Terminal, Download, Check, Coffee, Heart, Lock, Unlock } from 'lucide-react';
 
 export default function App() {
@@ -53,35 +54,26 @@ export default function App() {
   // const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showSuccessNotification, setShowSuccessNotification] = useState<string | null>(null);
 
-  // Initialize data from LocalStorage
+  // Load shared data from server so all devices see the same APKs
   useEffect(() => {
-    const cachedProjects = localStorage.getItem('kawaii_projects');
-    if (cachedProjects) {
+    async function loadData() {
       try {
-        setProjects(JSON.parse(cachedProjects));
-      } catch (e) {
+        const [serverProjects, serverStats] = await Promise.all([
+          fetchProjects(),
+          fetchStats(),
+        ]);
+        setProjects(serverProjects);
+        setStats({
+          boops: serverStats.boops ?? 0,
+          bugs: serverStats.bugs ?? 0,
+          coffeeLitres: serverStats.coffeeLitres ?? 0,
+        });
+      } catch (err) {
+        console.error('Failed to load from server, using defaults:', err);
         setProjects(INITIAL_PROJECTS);
       }
-    } else {
-      setProjects(INITIAL_PROJECTS);
-      localStorage.setItem('kawaii_projects', JSON.stringify(INITIAL_PROJECTS));
     }
-
-    const cachedStats = localStorage.getItem('kawaii_stats');
-    if (cachedStats) {
-      try {
-        const parsedStats = JSON.parse(cachedStats) as GlobalStats;
-        setStats({
-          boops: parsedStats.boops ?? 0,
-          bugs: parsedStats.bugs ?? 0,
-          coffeeLitres: parsedStats.coffeeLitres ?? 0
-        });
-      } catch (e) {
-        localStorage.setItem('kawaii_stats', JSON.stringify(stats));
-      }
-    } else {
-      localStorage.setItem('kawaii_stats', JSON.stringify(stats));
-    }
+    loadData();
   }, []);
 
   useEffect(() => {
@@ -101,50 +93,48 @@ export default function App() {
     setSystemHealth(calculatedHealth);
   }, [projects]);
 
-  // Persist projects to local storage
-  const saveProjects = (updatedProjects: APKProject[]) => {
+  const persistProjects = (updatedProjects: APKProject[]) => {
     setProjects(updatedProjects);
-    localStorage.setItem('kawaii_projects', JSON.stringify(updatedProjects));
+    saveProjects(updatedProjects).catch((err) => console.error('Failed to save projects:', err));
   };
 
-  // Persist statistics to local storage
-  const saveStats = (updatedStats: GlobalStats) => {
+  const persistStats = (updatedStats: GlobalStats) => {
     setStats(updatedStats);
-    localStorage.setItem('kawaii_stats', JSON.stringify(updatedStats));
+    saveStats(updatedStats).catch((err) => console.error('Failed to save stats:', err));
   };
 
   // Handlers
   const handleAddProject = (newProject: APKProject) => {
     const updated = [newProject, ...projects];
-    saveProjects(updated);
+    persistProjects(updated);
     
     // Add bug count slightly!
     const updatedStats = {
       ...stats,
       bugs: stats.bugs + 2
     };
-    saveStats(updatedStats);
+    persistStats(updatedStats);
 
     triggerToast(`🚀 "${newProject.title}" successfully deployed!`);
   };
 
   const handleDeleteProject = (id: string) => {
     const updated = projects.filter(p => p.id !== id);
-    saveProjects(updated);
+    persistProjects(updated);
     
     // Decrease bugs count somewhat
     const updatedStats = {
       ...stats,
       bugs: Math.max(0, stats.bugs - 1)
     };
-    saveStats(updatedStats);
+    persistStats(updatedStats);
 
     triggerToast('🗑️ APK successfully decommissioned!');
   };
 
   const handleEditProject = (editedProject: APKProject) => {
     const updated = projects.map(p => p.id === editedProject.id ? editedProject : p);
-    saveProjects(updated);
+    persistProjects(updated);
     triggerToast('📝 App configuration updated!');
   };
 
@@ -155,7 +145,7 @@ export default function App() {
         boops: prevStats.boops + 1,
         coffeeLitres: prevStats.coffeeLitres + 0.1
       };
-      localStorage.setItem('kawaii_stats', JSON.stringify(updated));
+      persistStats(updated);
       return updated;
     });
   };
@@ -171,7 +161,7 @@ export default function App() {
         ...prevStats,
         boops: prevStats.boops + 1
       };
-      localStorage.setItem('kawaii_stats', JSON.stringify(updated));
+      persistStats(updated);
       return updated;
     });
   };
@@ -200,7 +190,7 @@ export default function App() {
         : item
     );
 
-    saveProjects(updatedProjects);
+    persistProjects(updatedProjects);
     setSelectedProject((currentSelectedProject) => {
       if (currentSelectedProject?.id === projectId) {
         return updatedProjects.find((item) => item.id === projectId) ?? currentSelectedProject;
@@ -222,7 +212,7 @@ export default function App() {
       };
     });
 
-    saveProjects(updatedProjects);
+    persistProjects(updatedProjects);
     setSelectedProject((currentSelectedProject) => {
       if (currentSelectedProject?.id === projectId) {
         return updatedProjects.find((item) => item.id === projectId) ?? currentSelectedProject;
@@ -293,7 +283,7 @@ export default function App() {
           const updated = prevProjects.map(p => 
             p.id === projectId ? { ...p, downloads: p.downloads + 1 } : p
           );
-          localStorage.setItem('kawaii_projects', JSON.stringify(updated));
+          saveProjects(updated).catch((err) => console.error('Failed to save download count:', err));
           return updated;
         });
 
@@ -303,7 +293,7 @@ export default function App() {
             boops: prevStats.boops + 1,
             coffeeLitres: prevStats.coffeeLitres + 0.2
           };
-          localStorage.setItem('kawaii_stats', JSON.stringify(updated));
+          saveStats(updated).catch((err) => console.error('Failed to save stats:', err));
           return updated;
         });
       } else {
