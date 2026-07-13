@@ -78,6 +78,14 @@ async function deleteStoredApkRecord(projectId: string): Promise<void> {
 }
 
 export async function saveApkFile(projectId: string, blob: Blob, fileName: string, size: string): Promise<void> {
+  // Always store locally in the browser's IndexedDB first
+  try {
+    await storeApkRecord(projectId, blob, fileName, size);
+  } catch (err) {
+    console.warn('Failed to store APK in local IndexedDB:', err);
+  }
+
+  // Then try to upload to the server
   try {
     const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, {
       method: 'PUT',
@@ -90,16 +98,10 @@ export async function saveApkFile(projectId: string, blob: Blob, fileName: strin
     });
 
     if (!res.ok) {
-      throw new Error(`Failed to upload APK: ${res.status}`);
+      throw new Error(`Failed to upload APK to server: ${res.status}`);
     }
   } catch (err) {
-    const isServerError = err instanceof Error && err.message.startsWith('Failed to upload APK:');
-    if (isServerError) {
-      throw err;
-    }
-
-    await storeApkRecord(projectId, blob, fileName, size);
-    console.warn('Remote APK storage unavailable; stored locally in browser:', err);
+    console.warn('Remote server APK upload failed; using browser IndexedDB storage:', err);
   }
 }
 

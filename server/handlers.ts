@@ -40,3 +40,7 @@ export async function deleteApk(projectId: string) {
   await storage.deleteApk(projectId);
   return { ok: true as const };
 }
+
+export async function getStorageStatus() {
+  return storage.getStatus();
+}

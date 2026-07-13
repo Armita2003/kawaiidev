@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch server/index.ts",
-    "build": "vite build",
-    "start": "tsx server/index.ts --prod",
+    "build": "vite build && esbuild server/index.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
+    "start": "node dist/server.cjs --prod",
     "preview": "npm run build && npm run start",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit"

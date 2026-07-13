@@ -42,3 +42,10 @@ export interface GlobalStats {
   bugs: number;
   coffeeLitres: number;
 }
+
+export interface StorageStatus {
+  hasToken: boolean;
+  tokenPreview: string;
+  connectionOk: boolean;
+  error: string | null;
+}

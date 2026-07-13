@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { del, head, put } from '@vercel/blob';
+import { del, put, list } from '@vercel/blob';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
@@ -13,6 +13,13 @@ export interface ApkMeta {
   size: string;
 }
 
+export interface StorageStatus {
+  hasToken: boolean;
+  tokenPreview: string;
+  connectionOk: boolean;
+  error: string | null;
+}
+
 export interface Storage {
   readJson<T>(key: string, fallback: T): Promise<T>;
   writeJson(key: string, data: unknown): Promise<void>;
@@ -20,6 +27,21 @@ export interface Storage {
   getApk(projectId: string): Promise<{ data: Buffer; meta: ApkMeta } | null>;
   putApk(projectId: string, data: Buffer, meta: ApkMeta): Promise<void>;
   deleteApk(projectId: string): Promise<void>;
+  getStatus(): Promise<StorageStatus>;
+}
+
+async function getBlobUrl(token: string, pathname: string): Promise<string | null> {
+  try {
+    const { blobs } = await list({
+      prefix: pathname,
+      token,
+    });
+    const found = blobs.find((b) => b.pathname === pathname);
+    return found ? found.url : null;
+  } catch (err) {
+    console.error(`getBlobUrl error for ${pathname}:`, err);
+    return null;
+  }
 }
 
 class FileStorage implements Storage {
@@ -38,6 +60,7 @@ class FileStorage implements Storage {
   async readJson<T>(key: string, fallback: T): Promise<T> {
     const filePath = this.filePath(key);
     try {
+      if (!fs.existsSync(filePath)) return fallback;
       return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
     } catch {
       return fallback;
@@ -77,6 +100,15 @@ class FileStorage implements Storage {
     if (fs.existsSync(apkPath)) fs.unlinkSync(apkPath);
     if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
   }
+
+  async getStatus(): Promise<StorageStatus> {
+    return {
+      hasToken: false,
+      tokenPreview: '',
+      connectionOk: false,
+      error: 'Using local filesystem storage.',
+    };
+  }
 }
 
 class BlobStorage implements Storage {
@@ -96,8 +128,9 @@ class BlobStorage implements Storage {
 
   async readJson<T>(key: string, fallback: T): Promise<T> {
     try {
-      const info = await head(this.blobKey(key), { token: this.token });
-      const response = await fetch(info.downloadUrl);
+      const url = await getBlobUrl(this.token, this.blobKey(key));
+      if (!url) return fallback;
+      const response = await fetch(url);
       if (!response.ok) return fallback;
       return (await response.json()) as T;
     } catch {
@@ -116,8 +149,8 @@ class BlobStorage implements Storage {
 
   async hasApk(projectId: string): Promise<boolean> {
     try {
-      await head(this.apkKey(projectId), { token: this.token });
-      return true;
+      const url = await getBlobUrl(this.token, this.apkKey(projectId));
+      return url !== null;
     } catch {
       return false;
     }
@@ -125,23 +158,28 @@ class BlobStorage implements Storage {
 
   async getApk(projectId: string): Promise<{ data: Buffer; meta: ApkMeta } | null> {
     try {
-      const info = await head(this.apkKey(projectId), { token: this.token });
-      const response = await fetch(info.downloadUrl);
+      const url = await getBlobUrl(this.token, this.apkKey(projectId));
+      if (!url) return null;
+
+      const response = await fetch(url);
       if (!response.ok) return null;
 
       const data = Buffer.from(await response.arrayBuffer());
 
+      let meta: ApkMeta = { fileName: `${projectId}.apk`, size: '' };
       try {
-        const metaInfo = await head(this.metaKey(projectId), { token: this.token });
-        const metaResponse = await fetch(metaInfo.downloadUrl);
-        if (metaResponse.ok) {
-          return { data, meta: (await metaResponse.json()) as ApkMeta };
+        const metaUrl = await getBlobUrl(this.token, this.metaKey(projectId));
+        if (metaUrl) {
+          const metaResponse = await fetch(metaUrl);
+          if (metaResponse.ok) {
+            meta = (await metaResponse.json()) as ApkMeta;
+          }
         }
       } catch {
         // use fallback meta
       }
 
-      return { data, meta: { fileName: `${projectId}.apk`, size: String(info.size ?? '') } };
+      return { data, meta };
     } catch {
       return null;
     }
@@ -167,11 +205,9 @@ class BlobStorage implements Storage {
     const targets: string[] = [];
 
     for (const key of [this.apkKey(projectId), this.metaKey(projectId)]) {
-      try {
-        const info = await head(key, { token: this.token });
-        targets.push(info.url);
-      } catch {
-        // blob may not exist
+      const url = await getBlobUrl(this.token, key);
+      if (url) {
+        targets.push(url);
       }
     }
 
@@ -179,17 +215,183 @@ class BlobStorage implements Storage {
       await del(targets, { token: this.token });
     }
   }
+
+  async getStatus(): Promise<StorageStatus> {
+    try {
+      // Test the token by running a simple list call
+      await list({ limit: 1, token: this.token });
+      return {
+        hasToken: true,
+        tokenPreview: this.token ? `${this.token.substring(0, 10)}...` : '',
+        connectionOk: true,
+        error: null,
+      };
+    } catch (err: any) {
+      console.error('BlobStorage.getStatus test failed:', err);
+      return {
+        hasToken: true,
+        tokenPreview: this.token ? `${this.token.substring(0, 10)}...` : '',
+        connectionOk: false,
+        error: err?.message || String(err),
+      };
+    }
+  }
+}
+
+class HybridStorage implements Storage {
+  private fileStorage: FileStorage;
+  private blobStorage: BlobStorage | null = null;
+
+  constructor(token?: string) {
+    this.fileStorage = new FileStorage();
+    if (token) {
+      this.blobStorage = new BlobStorage(token);
+    }
+  }
+
+  async readJson<T>(key: string, fallback: T): Promise<T> {
+    if (this.blobStorage) {
+      try {
+        const val = await this.blobStorage.readJson<T | null>(key, null);
+        if (val !== null) {
+          // Sync to local FileStorage for immediate access
+          try {
+            await this.fileStorage.writeJson(key, val);
+          } catch {
+            // Ignore write errors on read-only environments like Vercel
+          }
+          return val;
+        }
+      } catch (err) {
+        console.warn(`Failed to read JSON ${key} from BlobStorage, falling back to FileStorage:`, err);
+      }
+    }
+    return this.fileStorage.readJson(key, fallback);
+  }
+
+  async writeJson(key: string, data: unknown): Promise<void> {
+    let localSucceeded = false;
+    // Write locally first for instant availability (where writable)
+    try {
+      await this.fileStorage.writeJson(key, data);
+      localSucceeded = true;
+    } catch (err) {
+      console.warn(`Local FileStorage write failed (expected on read-only environments like Vercel):`, err);
+    }
+
+    if (this.blobStorage) {
+      try {
+        await this.blobStorage.writeJson(key, data);
+      } catch (err) {
+        console.error(`Failed to sync write JSON ${key} to Vercel Blob:`, err);
+        // Only throw if we had absolutely no way to store the data
+        if (!localSucceeded) {
+          throw err;
+        }
+      }
+    } else if (!localSucceeded) {
+      throw new Error('No storage option succeeded (local storage is read-only and Vercel Blob is not configured)');
+    }
+  }
+
+  async hasApk(projectId: string): Promise<boolean> {
+    if (this.blobStorage) {
+      try {
+        const exists = await this.blobStorage.hasApk(projectId);
+        if (exists) return true;
+      } catch {
+        // fallback
+      }
+    }
+    try {
+      return await this.fileStorage.hasApk(projectId);
+    } catch {
+      return false;
+    }
+  }
+
+  async getApk(projectId: string): Promise<{ data: Buffer; meta: ApkMeta } | null> {
+    if (this.blobStorage) {
+      try {
+        const res = await this.blobStorage.getApk(projectId);
+        if (res) {
+          // Keep local cached copy updated
+          this.fileStorage.putApk(projectId, res.data, res.meta).catch(() => {
+            // Suppress local storage cache warnings in read-only environments
+          });
+          return res;
+        }
+      } catch (err) {
+        console.warn(`Failed to get APK ${projectId} from BlobStorage, falling back to FileStorage:`, err);
+      }
+    }
+    try {
+      return await this.fileStorage.getApk(projectId);
+    } catch {
+      return null;
+    }
+  }
+
+  async putApk(projectId: string, data: Buffer, meta: ApkMeta): Promise<void> {
+    let localSucceeded = false;
+    // Write locally first
+    try {
+      await this.fileStorage.putApk(projectId, data, meta);
+      localSucceeded = true;
+    } catch (err) {
+      console.warn(`Local FileStorage APK write failed (expected on read-only environments like Vercel):`, err);
+    }
+
+    if (this.blobStorage) {
+      try {
+        await this.blobStorage.putApk(projectId, data, meta);
+      } catch (err) {
+        console.error(`Failed to sync upload APK ${projectId} to Vercel Blob:`, err);
+        // Only throw if no other storage option succeeded
+        if (!localSucceeded) {
+          throw err;
+        }
+      }
+    } else if (!localSucceeded) {
+      throw new Error('Failed to save APK: Local filesystem is read-only and Vercel Blob is not configured.');
+    }
+  }
+
+  async deleteApk(projectId: string): Promise<void> {
+    try {
+      await this.fileStorage.deleteApk(projectId);
+    } catch (err) {
+      console.warn(`Local FileStorage APK delete failed (expected on read-only environments like Vercel):`, err);
+    }
+
+    if (this.blobStorage) {
+      try {
+        await this.blobStorage.deleteApk(projectId);
+      } catch (err) {
+        console.error(`Failed to delete APK ${projectId} from Vercel Blob:`, err);
+      }
+    }
+  }
+
+  async getStatus(): Promise<StorageStatus> {
+    if (this.blobStorage) {
+      return this.blobStorage.getStatus();
+    }
+    return {
+      hasToken: false,
+      tokenPreview: '',
+      connectionOk: false,
+      error: 'BLOB_READ_WRITE_TOKEN environment variable is not defined or empty.',
+    };
+  }
 }
 
 export function createStorage(): Storage {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (token) {
-    return new BlobStorage(token);
-  }
-
   fs.mkdirSync(DATA_DIR, { recursive: true });
   fs.mkdirSync(APKS_DIR, { recursive: true });
-  return new FileStorage();
+
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  return new HybridStorage(token);
 }
 
 export const storage = createStorage();

@@ -12,6 +12,7 @@ import {
   putApk,
   putProjects,
   putStats,
+  getStorageStatus,
 } from './handlers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -42,6 +43,14 @@ async function createServer() {
 
   app.get('/api/projects', async (_req, res) => {
     res.json(await getProjects());
+  });
+  
+  app.get('/api/storage-status', async (_req, res) => {
+    try {
+      res.json(await getStorageStatus());
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || String(err) });
+    }
   });
 
   app.put('/api/projects', async (req, res) => {
