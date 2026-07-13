@@ -93,6 +93,11 @@ export async function saveApkFile(projectId: string, blob: Blob, fileName: strin
       throw new Error(`Failed to upload APK: ${res.status}`);
     }
   } catch (err) {
+    const isServerError = err instanceof Error && err.message.startsWith('Failed to upload APK:');
+    if (isServerError) {
+      throw err;
+    }
+
     await storeApkRecord(projectId, blob, fileName, size);
     console.warn('Remote APK storage unavailable; stored locally in browser:', err);
   }

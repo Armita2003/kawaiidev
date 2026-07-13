@@ -3,20 +3,28 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { INITIAL_PROJECTS } from '../src/data.js';
+import {
+  deleteApk,
+  getApk,
+  getProjects,
+  getStats,
+  headApk,
+  putApk,
+  putProjects,
+  putStats,
+} from './handlers.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(__dirname, '..');
 const DATA_DIR = path.join(ROOT, 'data');
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
 const STATS_FILE = path.join(DATA_DIR, 'stats.json');
-const APKS_DIR = path.join(DATA_DIR, 'apks');
 const DIST_DIR = path.join(ROOT, 'dist');
 
 const DEFAULT_STATS = { boops: 0, bugs: 0, coffeeLitres: 0 };
 
 function ensureDataDirs() {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  fs.mkdirSync(APKS_DIR, { recursive: true });
+  fs.mkdirSync(path.join(DATA_DIR, 'apks'), { recursive: true });
 
   if (!fs.existsSync(PROJECTS_FILE)) {
     fs.writeFileSync(PROJECTS_FILE, JSON.stringify(INITIAL_PROJECTS, null, 2));
@@ -26,87 +34,53 @@ function ensureDataDirs() {
   }
 }
 
-function readJson<T>(filePath: string, fallback: T): T {
-  try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJson(filePath: string, data: unknown) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-}
-
 async function createServer() {
   ensureDataDirs();
 
   const app = express();
   app.use(express.json({ limit: '50mb' }));
 
-  app.get('/api/projects', (_req, res) => {
-    res.json(readJson(PROJECTS_FILE, INITIAL_PROJECTS));
+  app.get('/api/projects', async (_req, res) => {
+    res.json(await getProjects());
   });
 
-  app.put('/api/projects', (req, res) => {
-    writeJson(PROJECTS_FILE, req.body);
-    res.json({ ok: true });
+  app.put('/api/projects', async (req, res) => {
+    res.json(await putProjects(req.body));
   });
 
-  app.get('/api/stats', (_req, res) => {
-    res.json(readJson(STATS_FILE, DEFAULT_STATS));
+  app.get('/api/stats', async (_req, res) => {
+    res.json(await getStats());
   });
 
-  app.put('/api/stats', (req, res) => {
-    writeJson(STATS_FILE, req.body);
-    res.json({ ok: true });
+  app.put('/api/stats', async (req, res) => {
+    res.json(await putStats(req.body));
   });
 
-  app.head('/api/apks/:projectId', (req, res) => {
-    const apkPath = path.join(APKS_DIR, `${req.params.projectId}.apk`);
-    if (!fs.existsSync(apkPath)) {
+  app.head('/api/apks/:projectId', async (req, res) => {
+    res.sendStatus((await headApk(req.params.projectId)) ? 200 : 404);
+  });
+
+  app.get('/api/apks/:projectId', async (req, res) => {
+    const apk = await getApk(req.params.projectId);
+    if (!apk) {
       res.sendStatus(404);
       return;
     }
-    res.sendStatus(200);
-  });
-
-  app.get('/api/apks/:projectId', (req, res) => {
-    const metaPath = path.join(APKS_DIR, `${req.params.projectId}.json`);
-    const apkPath = path.join(APKS_DIR, `${req.params.projectId}.apk`);
-
-    if (!fs.existsSync(apkPath)) {
-      res.sendStatus(404);
-      return;
-    }
-
-    const meta = fs.existsSync(metaPath)
-      ? readJson<{ fileName: string; size: string }>(metaPath, { fileName: `${req.params.projectId}.apk`, size: '' })
-      : { fileName: `${req.params.projectId}.apk`, size: '' };
 
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-    res.setHeader('X-File-Name', encodeURIComponent(meta.fileName));
-    res.setHeader('X-File-Size', meta.size);
-    fs.createReadStream(apkPath).pipe(res);
+    res.setHeader('X-File-Name', encodeURIComponent(apk.meta.fileName));
+    res.setHeader('X-File-Size', apk.meta.size);
+    res.send(apk.data);
   });
 
-  app.put('/api/apks/:projectId', express.raw({ limit: '500mb', type: 'application/octet-stream' }), (req, res) => {
-    const apkPath = path.join(APKS_DIR, `${req.params.projectId}.apk`);
-    const metaPath = path.join(APKS_DIR, `${req.params.projectId}.json`);
+  app.put('/api/apks/:projectId', express.raw({ limit: '500mb', type: 'application/octet-stream' }), async (req, res) => {
     const fileName = decodeURIComponent(String(req.headers['x-file-name'] || `${req.params.projectId}.apk`));
     const size = String(req.headers['x-file-size'] || '');
-
-    fs.writeFileSync(apkPath, req.body);
-    writeJson(metaPath, { fileName, size });
-    res.json({ ok: true });
+    res.json(await putApk(req.params.projectId, req.body, fileName, size));
   });
 
-  app.delete('/api/apks/:projectId', (req, res) => {
-    const apkPath = path.join(APKS_DIR, `${req.params.projectId}.apk`);
-    const metaPath = path.join(APKS_DIR, `${req.params.projectId}.json`);
-    if (fs.existsSync(apkPath)) fs.unlinkSync(apkPath);
-    if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
-    res.json({ ok: true });
+  app.delete('/api/apks/:projectId', async (req, res) => {
+    res.json(await deleteApk(req.params.projectId));
   });
 
   const isProd = process.argv.includes('--prod') || process.env.NODE_ENV === 'production';

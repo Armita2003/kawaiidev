@@ -223,7 +223,9 @@ export default function AdminPanel({
       try {
         await saveApkFile(projectId, selectedApkFile, selectedApkFile.name, size);
       } catch (err) {
-        console.error('Failed to save APK file to IndexedDB:', err);
+        console.error('Failed to save APK file:', err);
+        alert('Failed to upload APK. Make sure Vercel Blob storage is configured.');
+        return;
       }
     }
 
