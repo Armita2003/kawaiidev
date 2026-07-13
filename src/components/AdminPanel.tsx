@@ -64,7 +64,7 @@ export default function AdminPanel({
   // Simulated files upload states
   const [apkFileName, setApkFileName] = useState<string | null>(null);
   const [selectedApkFile, setSelectedApkFile] = useState<File | null>(null);
-  const [screenshotPreview, setScreenshotPreview] = useState<string>('../src/assets/MainImage.jpg');
+  const [screenshotPreview, setScreenshotPreview] = useState<string>('/images/MainImage.jpg');
   const [coverUrl, setCoverUrl] = useState<string>('');
   
   // Custom screenshot editor states
@@ -198,7 +198,7 @@ export default function AdminPanel({
     setTags(['EXPO', 'HERMES']);
     setApkFileName(null);
     setSelectedApkFile(null);
-    setScreenshotPreview('../src/assets/MainImage.jpg');
+    setScreenshotPreview('/images/MainImage.jpg');
     setCoverUrl('');
     setScreenshotFit('cover');
     setScreenshotScale(100);
@@ -660,7 +660,7 @@ export default function AdminPanel({
                       <button 
                         type="button"
                         onClick={() => {
-                          setScreenshotPreview('../src/assets/MainImage.jpg');
+                          setScreenshotPreview('/images/MainImage.jpg');
                           setScreenshotFit('cover');
                           setScreenshotScale(100);
                           setScreenshotXOffset(0);

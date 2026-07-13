@@ -16,7 +16,7 @@ export default function Sidebar({ activeTab, onTabChange, systemHealth }: Sideba
           <div className="w-12 h-12 bg-primary-container rounded-xl border-2 border-on-background squishy-shadow-sm flex items-center justify-center overflow-hidden">
             <img 
               className="w-full h-full object-cover" 
-              src="../src/assets/MainImage.jpg" 
+              src="/images/MainImage.jpg" 
               alt="Mascot Dino" 
             />
           </div>
@@ -123,7 +123,7 @@ export default function Sidebar({ activeTab, onTabChange, systemHealth }: Sideba
         <div className="flex items-center gap-2.5 pt-2 border-t border-on-background/10 md:border-t-0">
           <img 
             className="w-9 h-9 rounded-full border-2 border-on-background shrink-0"
-            src="../src/assets/MainImage.jpg" 
+            src="/images/MainImage.jpg" 
             alt="Mascot Avatar" 
           />
           <div>

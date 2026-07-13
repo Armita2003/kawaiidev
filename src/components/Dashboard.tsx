@@ -129,7 +129,7 @@ export default function Dashboard({
           <div className="w-full aspect-square bg-tertiary-container border-2 border-on-background rounded-[40px] shadow-[8px_8px_0px_0px_rgba(22,29,31,1)] flex items-center justify-center overflow-hidden">
             <div 
               className="w-full h-full bg-cover bg-center hover:scale-105 duration-300 transition-transform" 
-              style={{ backgroundImage: `url('../src/assets/MainImage.jpg')` }}
+              style={{ backgroundImage: `url('/images/MainImage.jpg')` }}
               title="KawaiiDev mascot bot sitting on blocks"
             ></div>
           </div>

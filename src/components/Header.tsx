@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Coffee, Shield, Eye, Lock, Unlock, Menu, X, LayoutGrid } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-const HEADER_LOGO_URL = '../src/assets/MainImage.jpg';
+const HEADER_LOGO_URL = '/images/MainImage.jpg';
 
 interface HeaderProps {
   currentView: 'dashboard' | 'detail' | 'admin' | 'add_apk';
