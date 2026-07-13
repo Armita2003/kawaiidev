@@ -1,10 +1,11 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { del, put, list } from '@vercel/blob';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.join(__dirname, '..');
+const ROOT = process.cwd();
 const DATA_DIR = path.join(ROOT, 'data');
 const APKS_DIR = path.join(DATA_DIR, 'apks');
 
@@ -18,6 +19,7 @@ export interface StorageStatus {
   tokenPreview: string;
   connectionOk: boolean;
   error: string | null;
+  accessType?: 'public' | 'private';
 }
 
 export interface Storage {
@@ -25,6 +27,7 @@ export interface Storage {
   writeJson(key: string, data: unknown): Promise<void>;
   hasApk(projectId: string): Promise<boolean>;
   getApk(projectId: string): Promise<{ data: Buffer; meta: ApkMeta } | null>;
+  getApkUrl(projectId: string): Promise<string | null>;
   putApk(projectId: string, data: Buffer, meta: ApkMeta): Promise<void>;
   deleteApk(projectId: string): Promise<void>;
   getStatus(): Promise<StorageStatus>;
@@ -88,6 +91,10 @@ class FileStorage implements Storage {
     return { data: fs.readFileSync(apkPath), meta };
   }
 
+  async getApkUrl(projectId: string): Promise<string | null> {
+    return null;
+  }
+
   async putApk(projectId: string, data: Buffer, meta: ApkMeta): Promise<void> {
     fs.mkdirSync(APKS_DIR, { recursive: true });
     fs.writeFileSync(this.apkPath(projectId), data);
@@ -112,7 +119,45 @@ class FileStorage implements Storage {
 }
 
 class BlobStorage implements Storage {
+  private isPrivateStore: boolean | null = null;
+
   constructor(private token: string) {}
+
+  private async getAccessType(): Promise<'public' | 'private'> {
+    if (this.isPrivateStore === null) {
+      try {
+        // Try a tiny write to test if public access is allowed
+        const testKey = 'temp-access-test.txt';
+        await put(testKey, 'test', {
+          access: 'public',
+          token: this.token,
+          addRandomSuffix: false,
+        });
+        this.isPrivateStore = false;
+        // Clean up the test file
+        try {
+          await del(testKey, { token: this.token });
+        } catch {
+          // ignore cleanup error
+        }
+      } catch (err: any) {
+        const errMsg = String(err?.message || err);
+        if (
+          errMsg.includes('private store') ||
+          errMsg.includes('private access') ||
+          errMsg.includes('public access') ||
+          errMsg.includes('Cannot use public access')
+        ) {
+          console.log('🐾 Vercel Blob: Detected private store (public access not allowed). Switching to private access.');
+          this.isPrivateStore = true;
+        } else {
+          // Some other error, default to public
+          this.isPrivateStore = false;
+        }
+      }
+    }
+    return this.isPrivateStore ? 'private' : 'public';
+  }
 
   private blobKey(key: string) {
     return `data/${key}`;
@@ -139,8 +184,9 @@ class BlobStorage implements Storage {
   }
 
   async writeJson(key: string, data: unknown): Promise<void> {
+    const access = await this.getAccessType();
     await put(this.blobKey(key), JSON.stringify(data, null, 2), {
-      access: 'public',
+      access: access as any,
       contentType: 'application/json',
       token: this.token,
       addRandomSuffix: false,
@@ -185,16 +231,25 @@ class BlobStorage implements Storage {
     }
   }
 
+  async getApkUrl(projectId: string): Promise<string | null> {
+    try {
+      return await getBlobUrl(this.token, this.apkKey(projectId));
+    } catch {
+      return null;
+    }
+  }
+
   async putApk(projectId: string, data: Buffer, meta: ApkMeta): Promise<void> {
+    const access = await this.getAccessType();
     await put(this.apkKey(projectId), data, {
-      access: 'public',
+      access: access as any,
       contentType: 'application/vnd.android.package-archive',
       token: this.token,
       addRandomSuffix: false,
     });
 
     await put(this.metaKey(projectId), JSON.stringify(meta), {
-      access: 'public',
+      access: access as any,
       contentType: 'application/json',
       token: this.token,
       addRandomSuffix: false,
@@ -220,11 +275,13 @@ class BlobStorage implements Storage {
     try {
       // Test the token by running a simple list call
       await list({ limit: 1, token: this.token });
+      const accessType = await this.getAccessType();
       return {
         hasToken: true,
         tokenPreview: this.token ? `${this.token.substring(0, 10)}...` : '',
         connectionOk: true,
         error: null,
+        accessType,
       };
     } catch (err: any) {
       console.error('BlobStorage.getStatus test failed:', err);
@@ -330,6 +387,18 @@ class HybridStorage implements Storage {
     } catch {
       return null;
     }
+  }
+
+  async getApkUrl(projectId: string): Promise<string | null> {
+    if (this.blobStorage) {
+      try {
+        const url = await this.blobStorage.getApkUrl(projectId);
+        if (url) return url;
+      } catch {
+        // fallback
+      }
+    }
+    return this.fileStorage.getApkUrl(projectId);
   }
 
   async putApk(projectId: string, data: Buffer, meta: ApkMeta): Promise<void> {

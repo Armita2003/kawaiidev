@@ -1,3 +1,5 @@
+import { upload } from '@vercel/blob/client';
+
 export interface StoredApk {
   projectId: string;
   blob: Blob;
@@ -87,6 +89,53 @@ export async function saveApkFile(projectId: string, blob: Blob, fileName: strin
 
   // Then try to upload to the server
   try {
+    // Check if Vercel Blob is active
+    let blobActive = false;
+    let accessType: 'public' | 'private' = 'public';
+    try {
+      const statusRes = await fetch('/api/storage-status');
+      if (statusRes.ok) {
+        const status = await statusRes.json();
+        if (status && status.connectionOk) {
+          blobActive = true;
+          if (status.accessType) {
+            accessType = status.accessType;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to check storage status:', err);
+    }
+
+    if (blobActive) {
+      console.log(`Vercel Blob is active. Performing direct browser-to-blob upload using ${accessType} access to bypass serverless limits...`);
+      
+      try {
+        // 1. Upload APK directly to Vercel Blob
+        const apkUpload = await upload(`apks/${projectId}.apk`, blob, {
+          access: accessType as any,
+          handleUploadUrl: '/api/apks/upload-token',
+          clientPayload: projectId,
+        });
+        console.log('APK uploaded directly to Vercel Blob:', apkUpload.url);
+
+        // 2. Upload Metadata directly to Vercel Blob
+        const metaContent = JSON.stringify({ fileName, size });
+        const metaBlob = new Blob([metaContent], { type: 'application/json' });
+        await upload(`apks/${projectId}.meta.json`, metaBlob, {
+          access: accessType as any,
+          handleUploadUrl: '/api/apks/upload-token',
+          clientPayload: projectId,
+        });
+        console.log('Metadata uploaded directly to Vercel Blob');
+        return; // Success, exit early!
+      } catch (uploadErr) {
+        console.warn('Direct browser-to-blob upload failed. Falling back to Express server PUT upload...', uploadErr);
+      }
+    }
+
+    // Fallback to local/transient server PUT upload
+    console.log('Performing server PUT upload...');
     const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, {
       method: 'PUT',
       headers: {

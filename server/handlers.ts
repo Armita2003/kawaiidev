@@ -31,6 +31,10 @@ export async function getApk(projectId: string) {
   return storage.getApk(projectId);
 }
 
+export async function getApkUrl(projectId: string) {
+  return storage.getApkUrl(projectId);
+}
+
 export async function putApk(projectId: string, data: Buffer, fileName: string, size: string) {
   await storage.putApk(projectId, data, { fileName, size });
   return { ok: true as const };
