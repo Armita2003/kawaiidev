@@ -1190,8 +1190,6 @@ export default function AdminPanel({
               </label>
             </div>
 
-<<<<<<< HEAD
-=======
             {/* Vercel Blob Diagnostics */}
             <div className="pt-6 border-t border-on-background/10 space-y-4">
               <h3 className="font-display font-bold text-sm text-on-surface mb-1 flex items-center gap-1.5">
@@ -1261,7 +1259,6 @@ export default function AdminPanel({
               ) : null}
             </div>
 
->>>>>>> c8eb191 (WIP: local snapshot before syncing with armita)
             <div className="pt-4 border-t border-on-background/10 flex justify-end">
               <button 
                 type="button"
