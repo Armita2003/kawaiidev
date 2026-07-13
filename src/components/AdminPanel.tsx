@@ -238,15 +238,11 @@ export default function AdminPanel({
 
     const projectId = editingProjectId || title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
 
-    // Save selected apk file to IndexedDB if present
+    // Upload APK in background so deploy is not blocked by large blob syncs
     if (selectedApkFile) {
-      try {
-        await saveApkFile(projectId, selectedApkFile, selectedApkFile.name, size);
-      } catch (err) {
+      void saveApkFile(projectId, selectedApkFile, selectedApkFile.name, size).catch((err) => {
         console.error('Failed to save APK file:', err);
-        alert('Failed to upload APK. Make sure Vercel Blob storage is configured.');
-        return;
-      }
+      });
     }
 
     const newApp: APKProject = {

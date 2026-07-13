@@ -121,9 +121,18 @@ async function createServer() {
   });
 
   app.put('/api/apks/:projectId', express.raw({ limit: '500mb', type: 'application/octet-stream' }), async (req, res) => {
-    const fileName = decodeURIComponent(String(req.headers['x-file-name'] || `${req.params.projectId}.apk`));
-    const size = String(req.headers['x-file-size'] || '');
-    res.json(await putApk(req.params.projectId, req.body, fileName, size));
+    try {
+      const fileName = decodeURIComponent(String(req.headers['x-file-name'] || `${req.params.projectId}.apk`));
+      const size = String(req.headers['x-file-size'] || '');
+      const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
+      console.log(`🐾 Received PUT /api/apks/${req.params.projectId} - fileName=${fileName} sizeHeader=${size} bytes=${body.length}`);
+      const result = await putApk(req.params.projectId, body, fileName, size);
+      console.log(`🐾 Completed putApk for ${req.params.projectId}`);
+      res.json(result);
+    } catch (err: any) {
+      console.error('🐾 Error handling PUT /api/apks/:projectId:', err);
+      res.status(500).json({ error: err?.message || String(err) });
+    }
   });
 
   app.delete('/api/apks/:projectId', async (req, res) => {

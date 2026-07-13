@@ -1,4 +1,4 @@
-import { APKProject } from './types';
+import { APKProject } from './types.js';
 
 export const INITIAL_PROJECTS: APKProject[] = [
   {

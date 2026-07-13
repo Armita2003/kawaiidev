@@ -116,6 +116,7 @@ export async function saveApkFile(projectId: string, blob: Blob, fileName: strin
           access: accessType as any,
           handleUploadUrl: '/api/apks/upload-token',
           clientPayload: projectId,
+          multipart: blob.size > 5 * 1024 * 1024,
         });
         console.log('APK uploaded directly to Vercel Blob:', apkUpload.url);
 
