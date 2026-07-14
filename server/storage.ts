@@ -34,6 +34,29 @@ export interface Storage {
 }
 
 const blobUrlCache = new Map<string, string>();
+const blobSeedAttempted = new Set<string>();
+
+function localApkFilePath(projectId: string) {
+  return path.join(APKS_DIR, `${projectId}.apk`);
+}
+
+function getLocalApkSize(projectId: string): number {
+  try {
+    const filePath = localApkFilePath(projectId);
+    if (!fs.existsSync(filePath)) return 0;
+    return fs.statSync(filePath).size;
+  } catch {
+    return 0;
+  }
+}
+
+function hasLocalApk(projectId: string): boolean {
+  return getLocalApkSize(projectId) > 0;
+}
+
+function hasValidLocalApk(projectId: string): boolean {
+  return getLocalApkSize(projectId) > 1024;
+}
 
 async function getBlobUrl(token: string, pathname: string): Promise<string | null> {
   const cacheKey = `${token}:${pathname}`;
@@ -50,6 +73,8 @@ async function getBlobUrl(token: string, pathname: string): Promise<string | nul
     const url = found ? found.url : null;
     if (url) {
       blobUrlCache.set(cacheKey, url);
+    } else if (blobUrlCache.has(cacheKey)) {
+      blobUrlCache.delete(cacheKey);
     }
     return url;
   } catch (err) {
@@ -294,12 +319,22 @@ class BlobStorage implements Storage {
     const metaPathname = this.metaKey(projectId);
     try {
       console.log(`🐾 BlobStorage: putting APK to ${apkPathname} (${apkSize} bytes) access=${access}`);
+      let lastLoggedPct = -1;
       const apkResult = await put(apkPathname, apkBody, {
         access: access as any,
         contentType: 'application/vnd.android.package-archive',
         token: this.token,
         addRandomSuffix: false,
         multipart: apkSize > 5 * 1024 * 1024,
+        onUploadProgress: ({ loaded, total, percentage }) => {
+          const pct = percentage ?? (total ? Math.round((loaded / total) * 100) : 0);
+          if (pct >= lastLoggedPct + 5 || pct === 100) {
+            lastLoggedPct = pct;
+            const mbLoaded = (loaded / (1024 * 1024)).toFixed(1);
+            const mbTotal = total ? (total / (1024 * 1024)).toFixed(1) : '?';
+            console.log(`🐾 BlobStorage: ${projectId} upload ${pct}% (${mbLoaded}/${mbTotal} MB)`);
+          }
+        },
       });
       blobUrlCache.set(`${this.token}:${apkPathname}`, apkResult.url);
       console.log(`🐾 BlobStorage: APK put succeeded ${apkResult.url}`);
@@ -395,13 +430,13 @@ class HybridStorage implements Storage {
             return this.fileStorage.readJson(key, fallback);
           }
         } else {
-          // File definitely does not exist on Vercel Blob yet. Seed it safely!
           const localVal = await this.fileStorage.readJson(key, fallback);
-          console.log(`🐾 Key "${key}" not found in Vercel Blob. Seeding with local/fallback data...`);
-          try {
-            await this.blobStorage.writeJson(key, localVal);
-          } catch (writeErr) {
-            console.warn(`Failed to seed key "${key}" to Vercel Blob:`, writeErr);
+          if (!blobSeedAttempted.has(key)) {
+            blobSeedAttempted.add(key);
+            console.log(`🐾 Key "${key}" not found in Vercel Blob. Seeding once from local cache...`);
+            void this.blobStorage.writeJson(key, localVal).catch((writeErr) => {
+              console.warn(`Failed to seed key "${key}" to Vercel Blob:`, writeErr);
+            });
           }
           return localVal;
         }
@@ -438,6 +473,7 @@ class HybridStorage implements Storage {
   }
 
   async hasApk(projectId: string): Promise<boolean> {
+    if (hasLocalApk(projectId)) return true;
     if (this.blobStorage) {
       try {
         const exists = await this.blobStorage.hasApk(projectId);
@@ -454,11 +490,19 @@ class HybridStorage implements Storage {
   }
 
   async getApk(projectId: string): Promise<{ data: Buffer; meta: ApkMeta } | null> {
+    if (hasLocalApk(projectId)) {
+      try {
+        const local = await this.fileStorage.getApk(projectId);
+        if (local) return local;
+      } catch {
+        // fall through to blob
+      }
+    }
+
     if (this.blobStorage) {
       try {
         const res = await this.blobStorage.getApk(projectId);
         if (res) {
-          // Keep local cached copy updated
           this.fileStorage.putApk(projectId, res.data, res.meta).catch(() => {
             // Suppress local storage cache warnings in read-only environments
           });
@@ -476,6 +520,10 @@ class HybridStorage implements Storage {
   }
 
   async getApkUrl(projectId: string): Promise<string | null> {
+    // Serve local APKs directly instead of redirecting to possibly stale blob URLs
+    if (hasValidLocalApk(projectId)) {
+      return null;
+    }
     if (this.blobStorage) {
       try {
         const url = await this.blobStorage.getApkUrl(projectId);
@@ -554,28 +602,34 @@ class HybridStorage implements Storage {
     if (!this.blobStorage || process.env.VERCEL) return;
     if (!fs.existsSync(APKS_DIR)) return;
 
-    const apkFiles = fs.readdirSync(APKS_DIR).filter((name) => name.endsWith('.apk'));
-    for (const fileName of apkFiles) {
-      const projectId = fileName.replace(/\.apk$/, '');
-      const apkFilePath = path.join(APKS_DIR, fileName);
-      const { size } = fs.statSync(apkFilePath);
-      if (size < 1024) continue;
+    try {
+      const apkFiles = fs.readdirSync(APKS_DIR).filter((name) => name.endsWith('.apk'));
+      for (const fileName of apkFiles) {
+        const projectId = fileName.replace(/\.apk$/, '');
+        const apkFilePath = path.join(APKS_DIR, fileName);
 
-      try {
-        const existsInBlob = await this.blobStorage.hasApk(projectId);
-        if (existsInBlob) continue;
+        try {
+          if (!fs.existsSync(apkFilePath)) continue;
+          const { size } = fs.statSync(apkFilePath);
+          if (size < 1024) continue;
 
-        const metaPath = path.join(APKS_DIR, `${projectId}.meta.json`);
-        const meta: ApkMeta = fs.existsSync(metaPath)
-          ? (JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as ApkMeta)
-          : { fileName, size: '' };
+          const existsInBlob = await this.blobStorage.hasApk(projectId);
+          if (existsInBlob) continue;
 
-        console.log(`🐾 Startup sync: uploading missing APK ${projectId} (${size} bytes) to blob...`);
-        await this.blobStorage.putApkFromPath(projectId, apkFilePath, meta);
-        console.log(`🐾 Startup sync: ${projectId} uploaded to blob`);
-      } catch (err) {
-        console.error(`🐾 Startup sync failed for ${projectId}:`, err);
+          const metaPath = path.join(APKS_DIR, `${projectId}.meta.json`);
+          const meta: ApkMeta = fs.existsSync(metaPath)
+            ? (JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as ApkMeta)
+            : { fileName, size: '' };
+
+          console.log(`🐾 Startup sync: uploading missing APK ${projectId} (${size} bytes) to blob...`);
+          await this.blobStorage.putApkFromPath(projectId, apkFilePath, meta);
+          console.log(`🐾 Startup sync: ${projectId} uploaded to blob`);
+        } catch (err) {
+          console.error(`🐾 Startup sync failed for ${projectId}:`, err);
+        }
       }
+    } catch (err) {
+      console.error('🐾 Startup APK sync aborted:', err);
     }
   }
 }
@@ -591,7 +645,12 @@ export function createStorage(): Storage {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   const instance = new HybridStorage(token);
   if (token) {
-    void instance.syncMissingApksToBlob();
+    // Defer so startup sync doesn't block API requests or saturate the network
+    setTimeout(() => {
+      void instance.syncMissingApksToBlob().catch((err) => {
+        console.error('🐾 Startup APK sync error:', err);
+      });
+    }, 3000);
   }
   return instance;
 }

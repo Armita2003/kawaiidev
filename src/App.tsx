@@ -11,7 +11,6 @@ import ProjectDetail from './components/ProjectDetail';
 import AdminPanel from './components/AdminPanel';
 import { APKProject, GlobalStats } from './types';
 import { INITIAL_PROJECTS } from './data';
-import { getApkFile } from './utils/apkDb';
 import { fetchProjects, saveProjects, fetchStats, saveStats } from './utils/api';
 import { Sparkles, Terminal, Download, Check, Coffee, Heart, Lock, Unlock } from 'lucide-react';
 
@@ -221,50 +220,24 @@ export default function App() {
     });
   };
 
-  const triggerActualFileDownload = async (projectId: string, appTitle: string) => {
-    try {
-      const stored = await getApkFile(projectId);
-      let blob: Blob;
-      let downloadName = `${appTitle.replace(/\s+/g, '_')}.apk`;
-      
-      if (stored && stored.blob) {
-        blob = stored.blob;
-        if (stored.fileName) {
-          downloadName = stored.fileName;
-        }
-      } else {
-        const content = `KawaiiDev Mascot APK Stub\nApp Title: ${appTitle}\nStatus: Successfully assembled & compiled.\nThis is a fully-functional secure local browser-dispatched APK Stub. Thank you for your download! 🐾`;
-        blob = new Blob([content], { type: 'application/vnd.android.package-archive' });
-      }
-      
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = downloadName;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.warn('Real file retrieval failed, falling back to stub:', err);
-      const content = `KawaiiDev Mascot APK Stub\nApp Title: ${appTitle}\nStatus: Successfully assembled & compiled.\nThis is a fully-functional secure local browser-dispatched APK Stub. Thank you for your download! 🐾`;
-      const blob = new Blob([content], { type: 'application/vnd.android.package-archive' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `${appTitle.replace(/\s+/g, '_')}.apk`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
+  const triggerActualFileDownload = (projectId: string, appTitle: string) => {
+    const fileName = `${appTitle.replace(/\s+/g, '_')}.apk`;
+    const link = document.createElement('a');
+    link.href = `/api/apks/${encodeURIComponent(projectId)}`;
+    link.download = fileName;
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleDownloadAPK = (projectId: string) => {
     const app = projects.find(p => p.id === projectId);
     if (!app) return;
 
-    // Start loading/download progress simulation
+    // Must fire synchronously on click — async fetch breaks downloads on mobile Chrome
+    triggerActualFileDownload(projectId, app.title);
+
     setActiveDownloadApp(app.title);
     setDownloadProgress(0);
     setDownloadComplete(false);
@@ -276,7 +249,6 @@ export default function App() {
         clearInterval(interval);
         setDownloadProgress(100);
         setDownloadComplete(true);
-        triggerActualFileDownload(projectId, app.title);
         
         // Increment download stats
         setProjects((prevProjects) => {

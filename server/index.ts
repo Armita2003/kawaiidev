@@ -2,14 +2,13 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 import express from 'express';
-import fs from 'fs';
+import fs, { createReadStream } from 'fs';
 import path from 'path';
 import { handleUpload } from '@vercel/blob/client';
 import { INITIAL_PROJECTS } from '../src/data.js';
 import {
   deleteApk,
   getApk,
-  getApkUrl,
   getProjects,
   getStats,
   headApk,
@@ -23,6 +22,7 @@ const ROOT = process.cwd();
 const DATA_DIR = path.join(ROOT, 'data');
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
 const STATS_FILE = path.join(DATA_DIR, 'stats.json');
+const APKS_DIR = path.join(DATA_DIR, 'apks');
 const DIST_DIR = path.join(ROOT, 'dist');
 
 const DEFAULT_STATS = { boops: 0, bugs: 0, coffeeLitres: 0 };
@@ -102,19 +102,39 @@ async function createServer() {
   });
 
   app.get('/api/apks/:projectId', async (req, res) => {
-    const url = await getApkUrl(req.params.projectId);
-    if (url) {
-      res.redirect(302, url);
+    const { projectId } = req.params;
+    const localPath = path.join(APKS_DIR, `${projectId}.apk`);
+
+    // Stream local files directly so large APKs start downloading immediately
+    if (fs.existsSync(localPath)) {
+      const metaPath = path.join(APKS_DIR, `${projectId}.meta.json`);
+      let fileName = `${projectId}.apk`;
+      let size = '';
+      if (fs.existsSync(metaPath)) {
+        try {
+          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as { fileName?: string; size?: string };
+          fileName = meta.fileName || fileName;
+          size = meta.size || '';
+        } catch {
+          // use defaults
+        }
+      }
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName.replace(/"/g, '')}"`);
+      res.setHeader('X-File-Name', encodeURIComponent(fileName));
+      res.setHeader('X-File-Size', size);
+      createReadStream(localPath).pipe(res);
       return;
     }
 
-    const apk = await getApk(req.params.projectId);
+    const apk = await getApk(projectId);
     if (!apk) {
       res.sendStatus(404);
       return;
     }
 
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+    res.setHeader('Content-Disposition', `attachment; filename="${apk.meta.fileName.replace(/"/g, '')}"`);
     res.setHeader('X-File-Name', encodeURIComponent(apk.meta.fileName));
     res.setHeader('X-File-Size', apk.meta.size);
     res.send(apk.data);

@@ -107,16 +107,33 @@ export async function saveApkFile(projectId: string, blob: Blob, fileName: strin
       console.warn('Failed to check storage status:', err);
     }
 
-    if (blobActive) {
-      console.log(`Vercel Blob is active. Performing direct browser-to-blob upload using ${accessType} access to bypass serverless limits...`);
+    const isLocalhost =
+      typeof window !== 'undefined' &&
+      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+    const isLarge = blob.size > 5 * 1024 * 1024;
+
+    // Browser multipart upload hits blob.vercel-storage.com directly, which often fails on
+    // localhost/restricted networks (ERR_NAME_NOT_RESOLVED). Use server PUT instead.
+    if (blobActive && !isLocalhost && !isLarge) {
+      console.log(`Vercel Blob is active. Performing direct browser-to-blob upload using ${accessType} access...`);
       
       try {
         // 1. Upload APK directly to Vercel Blob
+        let lastLoggedPct = -1;
         const apkUpload = await upload(`apks/${projectId}.apk`, blob, {
           access: accessType as any,
           handleUploadUrl: '/api/apks/upload-token',
           clientPayload: projectId,
-          multipart: blob.size > 5 * 1024 * 1024,
+          multipart: false,
+          onUploadProgress: ({ loaded, total, percentage }) => {
+            const pct = percentage ?? (total ? Math.round((loaded / total) * 100) : 0);
+            if (pct >= lastLoggedPct + 5 || pct === 100) {
+              lastLoggedPct = pct;
+              const mbLoaded = (loaded / (1024 * 1024)).toFixed(1);
+              const mbTotal = total ? (total / (1024 * 1024)).toFixed(1) : '?';
+              console.log(`🐾 Browser blob upload ${projectId}: ${pct}% (${mbLoaded}/${mbTotal} MB)`);
+            }
+          },
         });
         console.log('APK uploaded directly to Vercel Blob:', apkUpload.url);
 
@@ -135,8 +152,8 @@ export async function saveApkFile(projectId: string, blob: Blob, fileName: strin
       }
     }
 
-    // Fallback to local/transient server PUT upload
-    console.log('Performing server PUT upload...');
+    // Server PUT: saves locally immediately, syncs to blob in background with progress logs
+    console.log(`Performing server PUT upload for ${projectId} (${(blob.size / (1024 * 1024)).toFixed(1)} MB)...`);
     const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, {
       method: 'PUT',
       headers: {
@@ -157,26 +174,28 @@ export async function saveApkFile(projectId: string, blob: Blob, fileName: strin
 
 export async function getApkFile(projectId: string): Promise<StoredApk | null> {
   try {
-    const local = await getStoredApkRecord(projectId);
-    if (local) {
-      return local;
-    }
-
     const headRes = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, { method: 'HEAD' });
-    if (!headRes.ok) return null;
-
-    const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`);
-    if (!res.ok) return null;
-
-    const blob = await res.blob();
-    const fileName = decodeURIComponent(res.headers.get('X-File-Name') || `${projectId}.apk`);
-    const size = res.headers.get('X-File-Size') || '';
-
-    return { projectId, blob, fileName, size };
+    if (headRes.ok) {
+      const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`);
+      if (res.ok) {
+        const blob = await res.blob();
+        if (blob.size > 1024) {
+          const fileName = decodeURIComponent(res.headers.get('X-File-Name') || `${projectId}.apk`);
+          const size = res.headers.get('X-File-Size') || '';
+          await storeApkRecord(projectId, blob, fileName, size).catch(() => {});
+          return { projectId, blob, fileName, size };
+        }
+      }
+    }
   } catch (err) {
-    console.warn('APK retrieval failed:', err);
-    return getStoredApkRecord(projectId);
+    console.warn('APK server retrieval failed, trying IndexedDB:', err);
   }
+
+  const cached = await getStoredApkRecord(projectId);
+  if (cached && cached.blob.size > 1024) {
+    return cached;
+  }
+  return cached;
 }
 
 export async function deleteApkFile(projectId: string): Promise<void> {
