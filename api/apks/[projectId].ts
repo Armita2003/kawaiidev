@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { deleteApk, getApk, getApkUrl, headApk, putApk } from '../../server/handlers.js';
+import { deleteApk, getApk, headApk, putApk } from '../../server/handlers.js';
 import { readRawBody } from '../../server/readBody.js';
 
 export const config = {
@@ -23,13 +23,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'GET') {
-      const url = await getApkUrl(projectId);
-      if (url) {
-        res.writeHead(302, { Location: url });
-        res.end();
-        return;
-      }
-
       const apk = await getApk(projectId);
       if (!apk) {
         res.status(404).end();

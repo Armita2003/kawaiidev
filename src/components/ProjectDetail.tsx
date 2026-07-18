@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { APKProject } from '../types';
+import { getProjectApkUrl } from '../utils/apkUrl';
 import { 
   ArrowLeft, 
   CheckCircle, 
@@ -28,9 +29,9 @@ export default function ProjectDetail({ project, onBack, onDownloadAPK, onReport
   const [bugInput, setBugInput] = useState('');
   const [showBugModal, setShowBugModal] = useState(false);
 
-  const downloadUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}/apk/${project.id}` 
-    : `https://kawaiidev.stash/apk/${project.id}`;
+  const downloadUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}${getProjectApkUrl(project)}`
+    : getProjectApkUrl(project);
 
   const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(downloadUrl)}&color=000000&bgcolor=FFFFFF`;
 

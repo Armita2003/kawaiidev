@@ -35,17 +35,13 @@ export interface APKProject {
   screenshotRotate?: number;
   coverUrl?: string;
   bugReports?: BugReport[];
+  /** Local path (`/apks/foo.apk`), API path (`/api/apks/project-id`), or external URL */
+  apk?: string;
 }
 
 export interface GlobalStats {
   boops: number;
   bugs: number;
   coffeeLitres: number;
-}
-
-export interface StorageStatus {
-  hasToken: boolean;
-  tokenPreview: string;
-  connectionOk: boolean;
-  error: string | null;
+  likes: number;
 }

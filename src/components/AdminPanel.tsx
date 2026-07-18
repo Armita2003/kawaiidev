@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { APKProject, AppStatus, StorageStatus } from '../types';
+import { APKProject, AppStatus } from '../types';
 import { saveApkFile, getApkFile, deleteApkFile } from '../utils/apkDb';
-import { fetchStorageStatus } from '../utils/api';
 import { 
   Plus, 
   Search, 
@@ -65,6 +64,7 @@ export default function AdminPanel({
   // Simulated files upload states
   const [apkFileName, setApkFileName] = useState<string | null>(null);
   const [selectedApkFile, setSelectedApkFile] = useState<File | null>(null);
+  const [apkUrl, setApkUrl] = useState('');
   const [screenshotPreview, setScreenshotPreview] = useState<string>('/images/MainImage.jpg');
   const [coverUrl, setCoverUrl] = useState<string>('');
   
@@ -82,25 +82,6 @@ export default function AdminPanel({
 
   // States for edit mode
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
-
-  const [storageStatus, setStorageStatus] = useState<StorageStatus | null>(null);
-  const [loadingStorageStatus, setLoadingStorageStatus] = useState(false);
-
-  useEffect(() => {
-    if (activeTab === 'settings') {
-      setLoadingStorageStatus(true);
-      fetchStorageStatus()
-        .then(status => {
-          setStorageStatus(status);
-        })
-        .catch(err => {
-          console.error('Error in fetchStorageStatus inside admin panel:', err);
-        })
-        .finally(() => {
-          setLoadingStorageStatus(false);
-        });
-    }
-  }, [activeTab]);
 
   useEffect(() => {
     if (editingProjectId) {
@@ -218,6 +199,7 @@ export default function AdminPanel({
     setTags(['EXPO', 'HERMES']);
     setApkFileName(null);
     setSelectedApkFile(null);
+    setApkUrl('');
     setScreenshotPreview('/images/MainImage.jpg');
     setCoverUrl('');
     setScreenshotFit('cover');
@@ -237,13 +219,17 @@ export default function AdminPanel({
     }
 
     const projectId = editingProjectId || title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const existingProject = editingProjectId ? projects.find((p) => p.id === editingProjectId) : undefined;
 
-    // Upload APK in background so deploy is not blocked by large blob syncs
     if (selectedApkFile) {
       void saveApkFile(projectId, selectedApkFile, selectedApkFile.name, size).catch((err) => {
         console.error('Failed to save APK file:', err);
       });
     }
+
+    const resolvedApk = selectedApkFile
+      ? `/api/apks/${encodeURIComponent(projectId)}`
+      : apkUrl.trim() || existingProject?.apk;
 
     const newApp: APKProject = {
       id: projectId,
@@ -270,6 +256,7 @@ export default function AdminPanel({
       screenshotBgColor,
       screenshotRotate,
       coverUrl: coverUrl || undefined,
+      apk: resolvedApk,
       iconType: category.toLowerCase().includes('coffee') ? 'coffee' : 'alarm',
       worksGreat: [
         // 'Passed rigorous automated simulated health checks.',
@@ -312,6 +299,7 @@ export default function AdminPanel({
     setScreenshotYOffset(project.screenshotYOffset !== undefined ? project.screenshotYOffset : 0);
     setScreenshotBgColor(project.screenshotBgColor || '#f1f5f9');
     setScreenshotRotate(project.screenshotRotate !== undefined ? project.screenshotRotate : 0);
+    setApkUrl(project.apk || '');
     onTabChange('add_apk');
   };
 
@@ -615,6 +603,20 @@ export default function AdminPanel({
 
               {/* Right Form Column: File Drag Drop & Screenshots */}
               <div className="space-y-4">
+                <div>
+                  <label className="block font-display font-bold text-xs text-on-surface mb-1">APK Link (optional)</label>
+                  <input
+                    type="text"
+                    placeholder="/apks/myapp.apk or https://example.com/app.apk"
+                    value={apkUrl}
+                    onChange={(e) => setApkUrl(e.target.value)}
+                    className="w-full bg-white border-2 border-on-background rounded-lg p-2.5 font-sans text-xs focus:ring-0 focus:border-primary outline-none transition-all"
+                  />
+                  <p className="text-[10px] text-on-surface-variant font-mono mt-1">
+                    Put APKs in <code className="bg-slate-100 px-1 rounded">public/apks/</code> or <code className="bg-slate-100 px-1 rounded">data/apks/</code>, or paste an external URL. Leave blank to use uploaded file.
+                  </p>
+                </div>
+
                 {/* Drag Drop Box */}
                 <div>
                   <label className="block font-display font-bold text-xs text-on-surface mb-1">APK Binary Stash</label>
@@ -1184,75 +1186,6 @@ export default function AdminPanel({
                 />
                 <span className="font-sans text-xs font-bold text-on-surface">Keep local storage automatically synchronized with biscuit crumbs</span>
               </label>
-            </div>
-
-            {/* Vercel Blob Diagnostics */}
-            <div className="pt-6 border-t border-on-background/10 space-y-4">
-              <h3 className="font-display font-bold text-sm text-on-surface mb-1 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-primary animate-pulse" />
-                Durable Multi-Device Sync (Vercel Blob)
-              </h3>
-              <p className="font-sans text-xs text-on-surface-variant">
-                To keep your APK projects and stats completely synchronized across your devices (phone, laptop, etc.) even when the server restarts, you can configure Vercel Blob storage.
-              </p>
-
-              {loadingStorageStatus ? (
-                <div className="p-4 bg-slate-50 border-2 border-on-background rounded-xl flex items-center justify-center gap-2">
-                  <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                  <span className="font-mono text-[11px] text-on-surface-variant">Testing blob storage credentials...</span>
-                </div>
-              ) : storageStatus ? (
-                <div className={`p-4 border-2 border-on-background rounded-xl shadow-[2px_2px_0px_0px_rgba(22,29,31,1)] ${
-                  storageStatus.connectionOk 
-                    ? 'bg-emerald-50' 
-                    : storageStatus.hasToken 
-                      ? 'bg-amber-50' 
-                      : 'bg-indigo-50/50'
-                }`}>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className={`w-2.5 h-2.5 rounded-full border border-on-background ${
-                          storageStatus.connectionOk 
-                            ? 'bg-emerald-500 animate-pulse' 
-                            : storageStatus.hasToken 
-                              ? 'bg-amber-500' 
-                              : 'bg-indigo-400'
-                        }`} />
-                        <span className="font-display font-bold text-xs text-on-surface">
-                          {storageStatus.connectionOk 
-                            ? 'Vercel Blob Sync Status: ACTIVE & ONLINE' 
-                            : storageStatus.hasToken 
-                              ? 'Vercel Blob: Token configured but connection failed' 
-                              : 'Vercel Blob: Offline (Using transient server memory)'}
-                        </span>
-                      </div>
-                      
-                      <div className="font-mono text-[10px] text-on-surface-variant space-y-1 pt-1.5">
-                        <p>• Token Preview: <span className="bg-white/60 px-1 py-0.5 rounded border border-on-background/10 font-bold font-mono">{storageStatus.hasToken ? storageStatus.tokenPreview : 'Not Found'}</span></p>
-                        {storageStatus.error && (
-                          <div className="bg-white/80 p-2 rounded border border-on-background/10 text-error-custom max-h-24 overflow-y-auto mt-1 font-mono text-[9px]">
-                            <p className="font-bold">Error details:</p>
-                            <p className="whitespace-pre-wrap">{storageStatus.error}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {!storageStatus.connectionOk && (
-                    <div className="mt-3 p-3 bg-white border border-on-background/20 rounded-lg text-xs space-y-1.5 text-on-surface-variant font-sans">
-                      <p className="font-bold text-on-surface">💡 How to configure Vercel Blob Storage:</p>
-                      <ol className="list-decimal list-inside space-y-1 pl-1">
-                        <li>Go to your **Vercel Dashboard** and open your Project settings.</li>
-                        <li>Navigate to **Storage**, create a new **Blob** instance, and connect it to your project.</li>
-                        <li>This will automatically inject the <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[10px] text-primary">BLOB_READ_WRITE_TOKEN</code> environment variable.</li>
-                        <li>If you are running the applet inside Google AI Studio, add <code className="bg-slate-100 px-1 py-0.5 rounded font-mono text-[10px] text-primary">BLOB_READ_WRITE_TOKEN</code> under the **Settings & Secrets** tab.</li>
-                      </ol>
-                    </div>
-                  )}
-                </div>
-              ) : null}
             </div>
 
             <div className="pt-4 border-t border-on-background/10 flex justify-end">

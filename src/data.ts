@@ -1,4 +1,11 @@
-import { APKProject } from './types.js';
+import { APKProject, GlobalStats } from './types.js';
+
+export const INITIAL_STATS: GlobalStats = {
+  boops: 0,
+  bugs: 0,
+  coffeeLitres: 0,
+  likes: 0,
+};
 
 export const INITIAL_PROJECTS: APKProject[] = [
   {

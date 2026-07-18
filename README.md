@@ -16,10 +16,16 @@
 
 APK data is stored server-side in the `data/` folder so all devices see the same projects.
 
+**Stats & bugs:** Coffee boops, heart likes, and bug reports are saved to `data/stats.json` and `data/projects.json`. Commit these files to keep counts in sync across machines.
+
+**Linking APKs:** Add an `apk` field to each project in `data.ts` (or via admin panel):
+- Local file: `apk: '/apks/myapp.apk'` (put the file in `public/apks/`)
+- Server file: `apk: '/api/apks/project-id'` (put the file in `data/apks/`)
+- External URL: `apk: 'https://example.com/app.apk'`
+- Omit `apk` to default to `/api/apks/{project-id}`
+
 ## Deploy to Vercel
 
 1. Push to GitHub and connect the repo in Vercel
-2. In Vercel Dashboard → **Storage** → create a **Blob** store and connect it to the project
-3. Redeploy — Vercel sets `BLOB_READ_WRITE_TOKEN` automatically
-
-Without Blob storage, the API routes exist but data won't persist across devices.
+2. Add APK files to `data/apks/` (e.g. `myproject.apk` + `myproject.meta.json`) and commit them to the repo
+3. Redeploy — APKs are served directly from the bundled `data/` folder

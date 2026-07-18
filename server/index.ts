@@ -4,8 +4,7 @@ dotenv.config();
 import express from 'express';
 import fs, { createReadStream } from 'fs';
 import path from 'path';
-import { handleUpload } from '@vercel/blob/client';
-import { INITIAL_PROJECTS } from '../src/data.js';
+import { INITIAL_PROJECTS, INITIAL_STATS } from '../src/data.js';
 import {
   deleteApk,
   getApk,
@@ -15,7 +14,6 @@ import {
   putApk,
   putProjects,
   putStats,
-  getStorageStatus,
 } from './handlers.js';
 
 const ROOT = process.cwd();
@@ -25,7 +23,7 @@ const STATS_FILE = path.join(DATA_DIR, 'stats.json');
 const APKS_DIR = path.join(DATA_DIR, 'apks');
 const DIST_DIR = path.join(ROOT, 'dist');
 
-const DEFAULT_STATS = { boops: 0, bugs: 0, coffeeLitres: 0 };
+const DEFAULT_STATS = INITIAL_STATS;
 
 function ensureDataDirs() {
   fs.mkdirSync(path.join(DATA_DIR, 'apks'), { recursive: true });
@@ -46,43 +44,6 @@ async function createServer() {
 
   app.get('/api/projects', async (_req, res) => {
     res.json(await getProjects());
-  });
-
-  app.get('/api/storage-status', async (_req, res) => {
-    try {
-      const status = await getStorageStatus();
-      console.log('🐾 Storage Status request:', status.connectionOk ? 'Vercel Blob is active ✅' : `Local-only fallback (${status.error || 'No token'}) 📁`);
-      res.json(status);
-    } catch (err: any) {
-      console.error('Express storage status error:', err);
-      res.status(500).json({ error: err?.message || String(err) });
-    }
-  });
-
-  app.post('/api/apks/upload-token', async (req, res) => {
-    try {
-      console.log('🐾 Received upload token request from client browser.');
-      const jsonResponse = await handleUpload({
-        body: req.body,
-        request: req,
-        onBeforeGenerateToken: async (pathname, clientPayload) => {
-          console.log(`🐾 Handshaking Vercel Blob token generation for path: ${pathname}, payload: ${clientPayload}`);
-          return {
-            addRandomSuffix: false,
-            tokenPayload: JSON.stringify({
-              projectId: clientPayload || '',
-            }),
-          };
-        },
-        onUploadCompleted: async ({ blob, tokenPayload }) => {
-          console.log('🐾 Express direct browser upload complete callback triggered on server:', blob, tokenPayload);
-        },
-      });
-      res.json(jsonResponse);
-    } catch (err: any) {
-      console.error('Express upload token error:', err);
-      res.status(400).json({ error: err?.message || String(err) });
-    }
   });
 
   app.put('/api/projects', async (req, res) => {

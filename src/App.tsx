@@ -10,8 +10,9 @@ import Dashboard from './components/Dashboard';
 import ProjectDetail from './components/ProjectDetail';
 import AdminPanel from './components/AdminPanel';
 import { APKProject, GlobalStats } from './types';
-import { INITIAL_PROJECTS } from './data';
+import { INITIAL_PROJECTS, INITIAL_STATS } from './data';
 import { fetchProjects, saveProjects, fetchStats, saveStats } from './utils/api';
+import { getProjectApkUrl } from './utils/apkUrl';
 import { Sparkles, Terminal, Download, Check, Coffee, Heart, Lock, Unlock } from 'lucide-react';
 
 export default function App() {
@@ -32,16 +33,7 @@ export default function App() {
   const [selectedProject, setSelectedProject] = useState<APKProject | null>(null);
   
   // Statistics and health
-  const [stats, setStats] = useState<GlobalStats>({
-    boops: 0,
-    bugs: 0,
-    coffeeLitres: 0
-  });
-  const [likes, setLikes] = useState<number>(() => {
-    const cachedLikes = localStorage.getItem('kawaii_likes');
-    const parsedLikes = Number(cachedLikes);
-    return Number.isFinite(parsedLikes) && parsedLikes >= 0 ? parsedLikes : 0;
-  });
+  const [stats, setStats] = useState<GlobalStats>(INITIAL_STATS);
   const [systemHealth, setSystemHealth] = useState(82);
 
   // Download simulation dialog state
@@ -66,6 +58,7 @@ export default function App() {
           boops: serverStats.boops ?? 0,
           bugs: serverStats.bugs ?? 0,
           coffeeLitres: serverStats.coffeeLitres ?? 0,
+          likes: serverStats.likes ?? 0,
         });
       } catch (err) {
         console.error('Failed to load from server, using defaults:', err);
@@ -150,15 +143,11 @@ export default function App() {
   };
 
   const handleLikeHeart = () => {
-    setLikes((prevLikes) => {
-      const updatedLikes = prevLikes + 1;
-      localStorage.setItem('kawaii_likes', String(updatedLikes));
-      return updatedLikes;
-    });
     setStats((prevStats) => {
       const updated = {
         ...prevStats,
-        boops: prevStats.boops + 1
+        likes: prevStats.likes + 1,
+        boops: prevStats.boops + 1,
       };
       persistStats(updated);
       return updated;
@@ -220,10 +209,10 @@ export default function App() {
     });
   };
 
-  const triggerActualFileDownload = (projectId: string, appTitle: string) => {
-    const fileName = `${appTitle.replace(/\s+/g, '_')}.apk`;
+  const triggerActualFileDownload = (project: APKProject) => {
+    const fileName = `${project.title.replace(/\s+/g, '_')}.apk`;
     const link = document.createElement('a');
-    link.href = `/api/apks/${encodeURIComponent(projectId)}`;
+    link.href = getProjectApkUrl(project);
     link.download = fileName;
     link.style.display = 'none';
     document.body.appendChild(link);
@@ -236,7 +225,7 @@ export default function App() {
     if (!app) return;
 
     // Must fire synchronously on click — async fetch breaks downloads on mobile Chrome
-    triggerActualFileDownload(projectId, app.title);
+    triggerActualFileDownload(app);
 
     setActiveDownloadApp(app.title);
     setDownloadProgress(0);
@@ -445,7 +434,7 @@ export default function App() {
               className="w-9 h-9 rounded-full border-2 border-on-background bg-secondary-container flex items-center justify-center hover:scale-110 active-squish cursor-pointer text-secondary"
             >
               <Heart className="w-4 h-4" />
-              <span className="ml-1 text-[10px] font-mono font-bold">{likes}</span>
+              <span className="ml-1 text-[10px] font-mono font-bold">{stats.likes}</span>
             </button>
           </div>
         </div>

@@ -1,5 +1,5 @@
-import { INITIAL_PROJECTS } from '../data';
-import { APKProject, GlobalStats, StorageStatus } from '../types';
+import { INITIAL_PROJECTS, INITIAL_STATS } from '../data';
+import { APKProject, GlobalStats } from '../types';
 
 const API_BASE = '/api';
 const PROJECTS_STORAGE_KEY = 'kawaii_projects';
@@ -54,7 +54,7 @@ export async function fetchStats(): Promise<GlobalStats> {
   try {
     return await apiFetch<GlobalStats>('/stats');
   } catch {
-    return readStorageJson<GlobalStats>(STATS_STORAGE_KEY, { boops: 0, bugs: 0, coffeeLitres: 0 });
+    return readStorageJson<GlobalStats>(STATS_STORAGE_KEY, INITIAL_STATS);
   }
 }
 
@@ -67,18 +67,5 @@ export async function saveStats(stats: GlobalStats): Promise<void> {
     });
   } catch {
     writeStorageJson(STATS_STORAGE_KEY, stats);
-  }
-}
-
-export async function fetchStorageStatus(): Promise<StorageStatus> {
-  try {
-    return await apiFetch<StorageStatus>('/storage-status');
-  } catch (err: any) {
-    return {
-      hasToken: false,
-      tokenPreview: '',
-      connectionOk: false,
-      error: err?.message || String(err),
-    };
   }
 }

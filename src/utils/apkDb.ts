@@ -1,5 +1,3 @@
-import { upload } from '@vercel/blob/client';
-
 export interface StoredApk {
   projectId: string;
   blob: Blob;
@@ -80,80 +78,7 @@ async function deleteStoredApkRecord(projectId: string): Promise<void> {
 }
 
 export async function saveApkFile(projectId: string, blob: Blob, fileName: string, size: string): Promise<void> {
-  // Always store locally in the browser's IndexedDB first
   try {
-    await storeApkRecord(projectId, blob, fileName, size);
-  } catch (err) {
-    console.warn('Failed to store APK in local IndexedDB:', err);
-  }
-
-  // Then try to upload to the server
-  try {
-    // Check if Vercel Blob is active
-    let blobActive = false;
-    let accessType: 'public' | 'private' = 'public';
-    try {
-      const statusRes = await fetch('/api/storage-status');
-      if (statusRes.ok) {
-        const status = await statusRes.json();
-        if (status && status.connectionOk) {
-          blobActive = true;
-          if (status.accessType) {
-            accessType = status.accessType;
-          }
-        }
-      }
-    } catch (err) {
-      console.warn('Failed to check storage status:', err);
-    }
-
-    const isLocalhost =
-      typeof window !== 'undefined' &&
-      (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-    const isLarge = blob.size > 5 * 1024 * 1024;
-
-    // Browser multipart upload hits blob.vercel-storage.com directly, which often fails on
-    // localhost/restricted networks (ERR_NAME_NOT_RESOLVED). Use server PUT instead.
-    if (blobActive && !isLocalhost && !isLarge) {
-      console.log(`Vercel Blob is active. Performing direct browser-to-blob upload using ${accessType} access...`);
-      
-      try {
-        // 1. Upload APK directly to Vercel Blob
-        let lastLoggedPct = -1;
-        const apkUpload = await upload(`apks/${projectId}.apk`, blob, {
-          access: accessType as any,
-          handleUploadUrl: '/api/apks/upload-token',
-          clientPayload: projectId,
-          multipart: false,
-          onUploadProgress: ({ loaded, total, percentage }) => {
-            const pct = percentage ?? (total ? Math.round((loaded / total) * 100) : 0);
-            if (pct >= lastLoggedPct + 5 || pct === 100) {
-              lastLoggedPct = pct;
-              const mbLoaded = (loaded / (1024 * 1024)).toFixed(1);
-              const mbTotal = total ? (total / (1024 * 1024)).toFixed(1) : '?';
-              console.log(`🐾 Browser blob upload ${projectId}: ${pct}% (${mbLoaded}/${mbTotal} MB)`);
-            }
-          },
-        });
-        console.log('APK uploaded directly to Vercel Blob:', apkUpload.url);
-
-        // 2. Upload Metadata directly to Vercel Blob
-        const metaContent = JSON.stringify({ fileName, size });
-        const metaBlob = new Blob([metaContent], { type: 'application/json' });
-        await upload(`apks/${projectId}.meta.json`, metaBlob, {
-          access: accessType as any,
-          handleUploadUrl: '/api/apks/upload-token',
-          clientPayload: projectId,
-        });
-        console.log('Metadata uploaded directly to Vercel Blob');
-        return; // Success, exit early!
-      } catch (uploadErr) {
-        console.warn('Direct browser-to-blob upload failed. Falling back to Express server PUT upload...', uploadErr);
-      }
-    }
-
-    // Server PUT: saves locally immediately, syncs to blob in background with progress logs
-    console.log(`Performing server PUT upload for ${projectId} (${(blob.size / (1024 * 1024)).toFixed(1)} MB)...`);
     const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, {
       method: 'PUT',
       headers: {
@@ -165,10 +90,11 @@ export async function saveApkFile(projectId: string, blob: Blob, fileName: strin
     });
 
     if (!res.ok) {
-      throw new Error(`Failed to upload APK to server: ${res.status}`);
+      throw new Error(`Failed to upload APK: ${res.status}`);
     }
   } catch (err) {
-    console.warn('Remote server APK upload failed; using browser IndexedDB storage:', err);
+    await storeApkRecord(projectId, blob, fileName, size);
+    console.warn('Remote APK storage unavailable; stored locally in browser:', err);
   }
 }
 
@@ -191,11 +117,7 @@ export async function getApkFile(projectId: string): Promise<StoredApk | null> {
     console.warn('APK server retrieval failed, trying IndexedDB:', err);
   }
 
-  const cached = await getStoredApkRecord(projectId);
-  if (cached && cached.blob.size > 1024) {
-    return cached;
-  }
-  return cached;
+  return getStoredApkRecord(projectId);
 }
 
 export async function deleteApkFile(projectId: string): Promise<void> {
