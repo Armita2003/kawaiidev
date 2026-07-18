@@ -9,6 +9,12 @@ interface StoredApkRecord extends StoredApk {
   createdAt: string;
 }
 
+interface SignedUploadInitResponse {
+  supported: boolean;
+  uploadUrl?: string;
+  path?: string;
+}
+
 const DB_NAME = 'kawaiidev-apks';
 const STORE_NAME = 'apks';
 
@@ -77,20 +83,62 @@ async function deleteStoredApkRecord(projectId: string): Promise<void> {
   db.close();
 }
 
+async function uploadViaSignedUrl(projectId: string, blob: Blob, fileName: string, size: string): Promise<boolean> {
+  const initRes = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: 'signed-upload', fileName, size }),
+  });
+
+  if (!initRes.ok) return false;
+
+  const initData = (await initRes.json()) as SignedUploadInitResponse;
+  if (!initData.supported || !initData.uploadUrl) return false;
+
+  const uploadRes = await fetch(initData.uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/vnd.android.package-archive' },
+    body: blob,
+  });
+
+  if (!uploadRes.ok) {
+    throw new Error(`Direct APK upload failed: ${uploadRes.status}`);
+  }
+
+  const completeRes = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode: 'complete-upload', fileName, size }),
+  });
+
+  if (!completeRes.ok) {
+    throw new Error(`Failed to finalize APK upload: ${completeRes.status}`);
+  }
+
+  return true;
+}
+
+async function uploadViaRawPut(projectId: string, blob: Blob, fileName: string, size: string): Promise<void> {
+  const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      'X-File-Name': encodeURIComponent(fileName),
+      'X-File-Size': size,
+    },
+    body: blob,
+  });
+
+  if (!res.ok) {
+    throw new Error(`Failed to upload APK: ${res.status}`);
+  }
+}
+
 export async function saveApkFile(projectId: string, blob: Blob, fileName: string, size: string): Promise<void> {
   try {
-    const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/octet-stream',
-        'X-File-Name': encodeURIComponent(fileName),
-        'X-File-Size': size,
-      },
-      body: blob,
-    });
-
-    if (!res.ok) {
-      throw new Error(`Failed to upload APK: ${res.status}`);
+    const usedSignedUpload = await uploadViaSignedUrl(projectId, blob, fileName, size).catch(() => false);
+    if (!usedSignedUpload) {
+      await uploadViaRawPut(projectId, blob, fileName, size);
     }
   } catch (err) {
     await storeApkRecord(projectId, blob, fileName, size);
@@ -102,7 +150,7 @@ export async function getApkFile(projectId: string): Promise<StoredApk | null> {
   try {
     const headRes = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, { method: 'HEAD' });
     if (headRes.ok) {
-      const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`);
+      const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, { redirect: 'follow' });
       if (res.ok) {
         const blob = await res.blob();
         if (blob.size > 1024) {

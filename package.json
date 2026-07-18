@@ -9,11 +9,15 @@
     "start": "node dist/server.cjs --prod",
     "preview": "npm run build && npm run start",
     "clean": "rm -rf dist server.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test": "node --import tsx --test server/**/*.test.ts",
+    "seed:supabase": "tsx scripts/seed-supabase.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",
+    "@supabase/supabase-js": "^2.110.7",
     "@tailwindcss/vite": "^4.1.14",
+    "@vercel/blob": "^2.6.1",
     "@vercel/node": "^5.0.0",
     "@vitejs/plugin-react": "^5.0.4",
     "dotenv": "^17.2.3",

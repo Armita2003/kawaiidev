@@ -1,5 +1,11 @@
 import { INITIAL_PROJECTS, INITIAL_STATS } from '../src/data.js';
-import { storage } from './storage.js';
+import {
+  getFileStorageLocalApkMeta,
+  getFileStorageLocalApkPath,
+  getStorageBackend,
+  isSupabaseStorage,
+  storage,
+} from './storage.js';
 
 const PROJECTS_KEY = 'projects.json';
 const STATS_KEY = 'stats.json';
@@ -22,12 +28,37 @@ export async function putStats(body: unknown) {
   return { ok: true as const };
 }
 
+export async function getHealthInfo() {
+  return {
+    ok: true as const,
+    service: 'kawaiidev-api',
+    storage: getStorageBackend(),
+  };
+}
+
 export async function headApk(projectId: string) {
   return storage.hasApk(projectId);
 }
 
 export async function getApk(projectId: string) {
   return storage.getApk(projectId);
+}
+
+export async function getApkDownloadUrl(projectId: string) {
+  if (!storage.createApkDownloadUrl) return null;
+  return storage.createApkDownloadUrl(projectId);
+}
+
+export async function getApkUploadUrl(projectId: string) {
+  if (!storage.createApkUploadUrl) return null;
+  return storage.createApkUploadUrl(projectId);
+}
+
+export async function completeApkUpload(projectId: string, fileName: string, size: string) {
+  if (storage.writeApkMeta) {
+    await storage.writeApkMeta(projectId, { fileName, size });
+  }
+  return { ok: true as const };
 }
 
 export async function putApk(projectId: string, data: Buffer, fileName: string, size: string) {
@@ -38,4 +69,80 @@ export async function putApk(projectId: string, data: Buffer, fileName: string, 
 export async function deleteApk(projectId: string) {
   await storage.deleteApk(projectId);
   return { ok: true as const };
+}
+
+export type ApkGetResult =
+  | { kind: 'redirect'; url: string; fileName: string; size: string }
+  | { kind: 'stream'; filePath: string; fileName: string; size: string }
+  | { kind: 'buffer'; data: Buffer; fileName: string; size: string }
+  | { kind: 'not_found' };
+
+export async function resolveApkGet(projectId: string): Promise<ApkGetResult> {
+  if (isSupabaseStorage()) {
+    const downloadUrl = await getApkDownloadUrl(projectId);
+    if (!downloadUrl) return { kind: 'not_found' };
+
+    const meta = storage.getApkMeta
+      ? (await storage.getApkMeta(projectId)) ?? { fileName: `${projectId}.apk`, size: '' }
+      : { fileName: `${projectId}.apk`, size: '' };
+    return {
+      kind: 'redirect',
+      url: downloadUrl,
+      fileName: meta.fileName,
+      size: meta.size,
+    };
+  }
+
+  const localPath = getFileStorageLocalApkPath(projectId);
+  if (localPath) {
+    const meta = getFileStorageLocalApkMeta(projectId);
+    return {
+      kind: 'stream',
+      filePath: localPath,
+      fileName: meta.fileName,
+      size: meta.size,
+    };
+  }
+
+  const apk = await getApk(projectId);
+  if (!apk) return { kind: 'not_found' };
+
+  return {
+    kind: 'buffer',
+    data: apk.data,
+    fileName: apk.meta.fileName,
+    size: apk.meta.size,
+  };
+}
+
+export async function resolveApkPut(
+  projectId: string,
+  options: {
+    mode?: string;
+    fileName?: string;
+    size?: string;
+    rawBody?: Buffer;
+  },
+) {
+  if (options.mode === 'signed-upload') {
+    if (!storage.createApkUploadUrl) {
+      return { supported: false as const };
+    }
+    const signed = await storage.createApkUploadUrl(projectId);
+    if (!signed) {
+      throw new Error('Failed to create signed upload URL');
+    }
+    return { supported: true as const, ...signed };
+  }
+
+  if (options.mode === 'complete-upload') {
+    const fileName = options.fileName || `${projectId}.apk`;
+    const size = options.size || '';
+    return completeApkUpload(projectId, fileName, size);
+  }
+
+  const fileName = options.fileName || `${projectId}.apk`;
+  const size = options.size || '';
+  const body = options.rawBody ?? Buffer.alloc(0);
+  return putApk(projectId, body, fileName, size);
 }

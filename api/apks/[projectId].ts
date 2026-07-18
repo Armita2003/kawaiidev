@@ -1,5 +1,6 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { deleteApk, getApk, headApk, putApk } from '../../server/handlers.js';
+import { createReadStream } from 'fs';
+import { deleteApk, headApk, resolveApkGet, resolveApkPut } from '../../server/handlers.js';
 import { readRawBody } from '../../server/readBody.js';
 
 export const config = {
@@ -7,6 +8,11 @@ export const config = {
     bodyParser: false,
   },
 };
+
+function isJsonRequest(req: VercelRequest): boolean {
+  const contentType = String(req.headers['content-type'] || '');
+  return contentType.includes('application/json');
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const projectId = String(req.query.projectId || '');
@@ -23,24 +29,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     if (req.method === 'GET') {
-      const apk = await getApk(projectId);
-      if (!apk) {
+      const result = await resolveApkGet(projectId);
+      if (result.kind === 'not_found') {
         res.status(404).end();
         return;
       }
 
+      res.setHeader('X-File-Name', encodeURIComponent(result.fileName));
+      res.setHeader('X-File-Size', result.size);
+
+      if (result.kind === 'redirect') {
+        res.setHeader('Location', result.url);
+        res.status(302).end();
+        return;
+      }
+
       res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-      res.setHeader('X-File-Name', encodeURIComponent(apk.meta.fileName));
-      res.setHeader('X-File-Size', apk.meta.size);
-      res.status(200).send(apk.data);
+      res.setHeader('Content-Disposition', `attachment; filename="${result.fileName.replace(/"/g, '')}"`);
+
+      if (result.kind === 'stream') {
+        createReadStream(result.filePath).pipe(res);
+        return;
+      }
+
+      res.status(200).send(result.data);
       return;
     }
 
     if (req.method === 'PUT') {
-      const body = await readRawBody(req);
+      if (isJsonRequest(req)) {
+        const raw = await readRawBody(req);
+        const body = JSON.parse(raw.toString('utf8')) as {
+          mode?: string;
+          fileName?: string;
+          size?: string;
+        };
+        const result = await resolveApkPut(projectId, {
+          mode: String(body.mode || ''),
+          fileName: body.fileName ? String(body.fileName) : undefined,
+          size: body.size ? String(body.size) : undefined,
+        });
+        res.status(200).json(result);
+        return;
+      }
+
+      const rawBody = await readRawBody(req);
       const fileName = decodeURIComponent(String(req.headers['x-file-name'] || `${projectId}.apk`));
       const size = String(req.headers['x-file-size'] || '');
-      res.status(200).json(await putApk(projectId, body, fileName, size));
+      res.status(200).json(await resolveApkPut(projectId, { rawBody, fileName, size }));
       return;
     }
 

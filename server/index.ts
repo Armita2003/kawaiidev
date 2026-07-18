@@ -7,25 +7,28 @@ import path from 'path';
 import { INITIAL_PROJECTS, INITIAL_STATS } from '../src/data.js';
 import {
   deleteApk,
-  getApk,
+  getHealthInfo,
   getProjects,
   getStats,
   headApk,
-  putApk,
   putProjects,
   putStats,
+  resolveApkGet,
+  resolveApkPut,
 } from './handlers.js';
+import { isSupabaseStorage } from './storage.js';
 
 const ROOT = process.cwd();
 const DATA_DIR = path.join(ROOT, 'data');
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
 const STATS_FILE = path.join(DATA_DIR, 'stats.json');
-const APKS_DIR = path.join(DATA_DIR, 'apks');
 const DIST_DIR = path.join(ROOT, 'dist');
 
 const DEFAULT_STATS = INITIAL_STATS;
 
 function ensureDataDirs() {
+  if (isSupabaseStorage()) return;
+
   fs.mkdirSync(path.join(DATA_DIR, 'apks'), { recursive: true });
 
   if (!fs.existsSync(PROJECTS_FILE)) {
@@ -38,16 +41,27 @@ function ensureDataDirs() {
 
 async function createServer() {
   ensureDataDirs();
+  console.log('Storage backend:', isSupabaseStorage() ? 'supabase' : 'file');
 
   const app = express();
   app.use(express.json({ limit: '50mb' }));
+
+  app.get('/api/health', async (_req, res) => {
+    res.json(await getHealthInfo());
+  });
 
   app.get('/api/projects', async (_req, res) => {
     res.json(await getProjects());
   });
 
   app.put('/api/projects', async (req, res) => {
-    res.json(await putProjects(req.body));
+    try {
+      const result = await putProjects(req.body);
+      res.json(result);
+    } catch (err: any) {
+      console.error('🐾 Error handling PUT /api/projects:', err);
+      res.status(500).json({ error: err?.message || String(err) });
+    }
   });
 
   app.get('/api/stats', async (_req, res) => {
@@ -55,7 +69,13 @@ async function createServer() {
   });
 
   app.put('/api/stats', async (req, res) => {
-    res.json(await putStats(req.body));
+    try {
+      const result = await putStats(req.body);
+      res.json(result);
+    } catch (err: any) {
+      console.error('🐾 Error handling PUT /api/stats:', err);
+      res.status(500).json({ error: err?.message || String(err) });
+    }
   });
 
   app.head('/api/apks/:projectId', async (req, res) => {
@@ -64,50 +84,57 @@ async function createServer() {
 
   app.get('/api/apks/:projectId', async (req, res) => {
     const { projectId } = req.params;
-    const localPath = path.join(APKS_DIR, `${projectId}.apk`);
+    const result = await resolveApkGet(projectId);
 
-    // Stream local files directly so large APKs start downloading immediately
-    if (fs.existsSync(localPath)) {
-      const metaPath = path.join(APKS_DIR, `${projectId}.meta.json`);
-      let fileName = `${projectId}.apk`;
-      let size = '';
-      if (fs.existsSync(metaPath)) {
-        try {
-          const meta = JSON.parse(fs.readFileSync(metaPath, 'utf-8')) as { fileName?: string; size?: string };
-          fileName = meta.fileName || fileName;
-          size = meta.size || '';
-        } catch {
-          // use defaults
-        }
-      }
-      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-      res.setHeader('Content-Disposition', `attachment; filename="${fileName.replace(/"/g, '')}"`);
-      res.setHeader('X-File-Name', encodeURIComponent(fileName));
-      res.setHeader('X-File-Size', size);
-      createReadStream(localPath).pipe(res);
-      return;
-    }
-
-    const apk = await getApk(projectId);
-    if (!apk) {
+    if (result.kind === 'not_found') {
       res.sendStatus(404);
       return;
     }
 
+    res.setHeader('X-File-Name', encodeURIComponent(result.fileName));
+    res.setHeader('X-File-Size', result.size);
+
+    if (result.kind === 'redirect') {
+      res.setHeader('Location', result.url);
+      res.status(302).end();
+      return;
+    }
+
     res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-    res.setHeader('Content-Disposition', `attachment; filename="${apk.meta.fileName.replace(/"/g, '')}"`);
-    res.setHeader('X-File-Name', encodeURIComponent(apk.meta.fileName));
-    res.setHeader('X-File-Size', apk.meta.size);
-    res.send(apk.data);
+    res.setHeader('Content-Disposition', `attachment; filename="${result.fileName.replace(/"/g, '')}"`);
+
+    if (result.kind === 'stream') {
+      createReadStream(result.filePath).pipe(res);
+      return;
+    }
+
+    res.send(result.data);
   });
 
   app.put('/api/apks/:projectId', express.raw({ limit: '500mb', type: 'application/octet-stream' }), async (req, res) => {
     try {
+      const contentType = String(req.headers['content-type'] || '');
+
+      if (contentType.includes('application/json')) {
+        const body = (typeof req.body === 'object' && req.body !== null ? req.body : {}) as {
+          mode?: string;
+          fileName?: string;
+          size?: string;
+        };
+        const result = await resolveApkPut(req.params.projectId, {
+          mode: String(body.mode || ''),
+          fileName: body.fileName ? String(body.fileName) : undefined,
+          size: body.size ? String(body.size) : undefined,
+        });
+        res.json(result);
+        return;
+      }
+
       const fileName = decodeURIComponent(String(req.headers['x-file-name'] || `${req.params.projectId}.apk`));
       const size = String(req.headers['x-file-size'] || '');
       const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
       console.log(`🐾 Received PUT /api/apks/${req.params.projectId} - fileName=${fileName} sizeHeader=${size} bytes=${body.length}`);
-      const result = await putApk(req.params.projectId, body, fileName, size);
+      const result = await resolveApkPut(req.params.projectId, { rawBody: body, fileName, size });
       console.log(`🐾 Completed putApk for ${req.params.projectId}`);
       res.json(result);
     } catch (err: any) {
@@ -117,7 +144,13 @@ async function createServer() {
   });
 
   app.delete('/api/apks/:projectId', async (req, res) => {
-    res.json(await deleteApk(req.params.projectId));
+    try {
+      const result = await deleteApk(req.params.projectId);
+      res.json(result);
+    } catch (err: any) {
+      console.error(`🐾 Error handling DELETE /api/apks/${req.params.projectId}:`, err);
+      res.status(500).json({ error: err?.message || String(err) });
+    }
   });
 
   const isProd = process.argv.includes('--prod') || process.env.NODE_ENV === 'production';
