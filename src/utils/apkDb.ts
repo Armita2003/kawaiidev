@@ -97,7 +97,6 @@ async function uploadViaSignedUrl(projectId: string, blob: Blob, fileName: strin
 
   const uploadRes = await fetch(initData.uploadUrl, {
     method: 'PUT',
-    headers: { 'Content-Type': 'application/vnd.android.package-archive' },
     body: blob,
   });
 
@@ -118,12 +117,12 @@ async function uploadViaSignedUrl(projectId: string, blob: Blob, fileName: strin
   return true;
 }
 
-async function uploadViaRawPut(projectId: string, blob: Blob, fileName: string, size: string): Promise<void> {
+async function uploadViaRawPut(projectId: string, blob: Blob, fileName: string, size: string): Promise<boolean> {
   const res = await fetch(`/api/apks/${encodeURIComponent(projectId)}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/octet-stream',
-      'X-File-Name': encodeURIComponent(fileName),
+      'X-File-Name': String(fileName),
       'X-File-Size': size,
     },
     body: blob,
@@ -132,17 +131,32 @@ async function uploadViaRawPut(projectId: string, blob: Blob, fileName: string, 
   if (!res.ok) {
     throw new Error(`Failed to upload APK: ${res.status}`);
   }
+
+  return true;
 }
 
-export async function saveApkFile(projectId: string, blob: Blob, fileName: string, size: string): Promise<void> {
+export async function saveApkFile(projectId: string, blob: Blob, fileName: string, size: string): Promise<boolean> {
   try {
-    const usedSignedUpload = await uploadViaSignedUrl(projectId, blob, fileName, size).catch(() => false);
-    if (!usedSignedUpload) {
+    // Try raw PUT to the API first (works reliably from browser). If that fails,
+    // fall back to signed upload flow which may be blocked by CORS in some setups.
+    try {
       await uploadViaRawPut(projectId, blob, fileName, size);
+      return true;
+    } catch (err) {
+      console.warn('Raw PUT failed, trying signed upload flow:', err);
     }
+
+    const usedSignedUpload = await uploadViaSignedUrl(projectId, blob, fileName, size).catch((err) => {
+      console.warn('Signed upload unavailable, falling back to local storage:', err);
+      return false;
+    });
+
+    if (usedSignedUpload) return true;
+    return false;
   } catch (err) {
     await storeApkRecord(projectId, blob, fileName, size);
     console.warn('Remote APK storage unavailable; stored locally in browser:', err);
+    return false;
   }
 }
 

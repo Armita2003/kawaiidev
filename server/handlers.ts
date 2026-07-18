@@ -78,24 +78,31 @@ export type ApkGetResult =
   | { kind: 'not_found' };
 
 export async function resolveApkGet(projectId: string): Promise<ApkGetResult> {
-  if (isSupabaseStorage()) {
-    const downloadUrl = await getApkDownloadUrl(projectId);
-    if (!downloadUrl) return { kind: 'not_found' };
-
-    const meta = storage.getApkMeta
-      ? (await storage.getApkMeta(projectId)) ?? { fileName: `${projectId}.apk`, size: '' }
-      : { fileName: `${projectId}.apk`, size: '' };
-    return {
-      kind: 'redirect',
-      url: downloadUrl,
-      fileName: meta.fileName,
-      size: meta.size,
-    };
+  // Prefer using signed download URL when available on the storage implementation.
+  if (storage.createApkDownloadUrl) {
+    try {
+      const downloadUrl = await storage.createApkDownloadUrl(projectId);
+      if (downloadUrl) {
+        const meta = storage.getApkMeta
+          ? (await storage.getApkMeta(projectId)) ?? { fileName: `${projectId}.apk`, size: '' }
+          : { fileName: `${projectId}.apk`, size: '' };
+        return {
+          kind: 'redirect',
+          url: downloadUrl,
+          fileName: meta.fileName,
+          size: meta.size,
+        };
+      }
+    } catch (err) {
+      console.error(`Error creating download URL for ${projectId}:`, err);
+      // fall through to try local/file/buffer retrieval
+    }
   }
 
-  const localPath = getFileStorageLocalApkPath(projectId);
+  // Try file-backed local path helpers first (works when storage switched to local file)
+  const localPath = await getFileStorageLocalApkPath(projectId);
   if (localPath) {
-    const meta = getFileStorageLocalApkMeta(projectId);
+    const meta = await getFileStorageLocalApkMeta(projectId);
     return {
       kind: 'stream',
       filePath: localPath,

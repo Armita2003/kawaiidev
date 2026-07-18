@@ -30,6 +30,7 @@ export default function App() {
   
   // Data states
   const [projects, setProjects] = useState<APKProject[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState<boolean>(true);
   const [selectedProject, setSelectedProject] = useState<APKProject | null>(null);
   
   // Statistics and health
@@ -64,6 +65,7 @@ export default function App() {
         console.error('Failed to load from server, using defaults:', err);
         setProjects(INITIAL_PROJECTS);
       }
+      setLoadingProjects(false);
     }
     loadData();
   }, []);
@@ -210,7 +212,8 @@ export default function App() {
   };
 
   const triggerActualFileDownload = (project: APKProject) => {
-    const fileName = `${project.title.replace(/\s+/g, '_')}.apk`;
+    const safeTitle = project.title ? project.title.replace(/\s+/g, '_') : project.id;
+    const fileName = `${safeTitle}.apk`;
     const link = document.createElement('a');
     link.href = getProjectApkUrl(project);
     link.download = fileName;
@@ -380,6 +383,7 @@ export default function App() {
           /* Public Stash Portfolio Dashboard */
           <main className="flex-grow">
             <Dashboard 
+              loading={loadingProjects}
               projects={projects} 
               stats={stats} 
               onProjectSelect={(proj) => setSelectedProject(proj)} 

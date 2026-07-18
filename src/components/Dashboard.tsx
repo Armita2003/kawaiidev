@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 
 interface DashboardProps {
+  loading: boolean;
   projects: APKProject[];
   stats: GlobalStats;
   onProjectSelect: (project: APKProject) => void;
@@ -32,6 +33,7 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ 
+  loading,
   projects, 
   stats, 
   onProjectSelect, 
@@ -152,6 +154,13 @@ export default function Dashboard({
             <span className="px-3 py-1 bg-primary-container text-on-primary-container border border-on-background rounded-full">Hermes</span>
           </div>
         </div>
+        {loading && (
+          <div className="mb-8 rounded-3xl border-2 border-on-background bg-surface p-6 shadow-[4px_4px_0px_0px_rgba(22,29,31,1)] text-center">
+            <div className="mx-auto mb-4 h-12 w-12 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+            <p className="font-display font-bold text-lg text-on-surface">Loading projects…</p>
+            <p className="text-sm text-on-surface-variant mt-2">Boop while we pull the latest apps into the vault.</p>
+          </div>
+        )}
 
         {/* Bento Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -247,9 +256,9 @@ export default function Dashboard({
                 {/* Tags block */}
                 <div className="flex flex-wrap gap-1.5 mb-3 font-mono text-[9px] font-bold">
                   <span className="px-2 py-0.5 bg-secondary-container text-on-secondary-container border border-on-background rounded-full">
-                    {project.status.toUpperCase()}
+                    {(project.status || 'Unknown').toUpperCase()}
                   </span>
-                  {project.tags.slice(0, 2).map(tag => (
+                  {(project.tags ?? []).slice(0, 2).map(tag => (
                     <span key={tag} className="px-2 py-0.5 bg-tertiary-container text-on-tertiary-container border border-on-background rounded-full">
                       {tag}
                     </span>

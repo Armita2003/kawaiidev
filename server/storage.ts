@@ -113,6 +113,11 @@ class FileStorage implements Storage {
     return this.getLocalApkMeta(projectId);
   }
 
+  async writeApkMeta(projectId: string, meta: ApkMeta): Promise<void> {
+    fs.mkdirSync(this.apkDir(), { recursive: true });
+    fs.writeFileSync(this.metaPath(projectId), JSON.stringify(meta, null, 2));
+  }
+
   getLocalApkPath(projectId: string): string | null {
     const apkPath = this.apkPath(projectId);
     return fs.existsSync(apkPath) ? apkPath : null;
@@ -154,8 +159,8 @@ class SupabaseStorage implements Storage {
       .maybeSingle();
 
     if (error) {
-      console.error(`Supabase readJson error (${dbKey}):`, error.message);
-      return fallback;
+      console.error(`Supabase readJson error (${dbKey}):`, error.message || error);
+      throw new Error(`Supabase readJson error (${dbKey}): ${error.message || JSON.stringify(error)}`);
     }
 
     if (!data?.value) return fallback;
@@ -189,8 +194,8 @@ class SupabaseStorage implements Storage {
     });
 
     if (error) {
-      console.error(`Supabase hasApk error (${projectId}):`, error.message);
-      return false;
+      console.error(`Supabase hasApk error (${projectId}):`, error.message || error);
+      throw new Error(`Supabase hasApk error (${projectId}): ${error.message || JSON.stringify(error)}`);
     }
 
     return (data ?? []).some((item) => item.name === apkObjectPath(projectId));
@@ -205,8 +210,8 @@ class SupabaseStorage implements Storage {
       .download(apkObjectPath(projectId));
 
     if (apkError || !apkData) {
-      console.error(`Supabase getApk download error (${projectId}):`, apkError?.message);
-      return null;
+      console.error(`Supabase getApk download error (${projectId}):`, apkError?.message || apkError);
+      throw new Error(`Supabase getApk error (${projectId}): ${apkError?.message || JSON.stringify(apkError)}`);
     }
 
     const meta = await this.readApkMeta(projectId);
@@ -280,8 +285,8 @@ class SupabaseStorage implements Storage {
       .createSignedUrl(apkObjectPath(projectId), SIGNED_URL_TTL_SECONDS);
 
     if (error || !data?.signedUrl) {
-      console.error(`Supabase createApkDownloadUrl error (${projectId}):`, error?.message);
-      return null;
+      console.error(`Supabase createApkDownloadUrl error (${projectId}):`, error?.message || error);
+      throw new Error(`Supabase createApkDownloadUrl error (${projectId}): ${error?.message || JSON.stringify(error)}`);
     }
 
     return data.signedUrl;
@@ -427,6 +432,30 @@ export function createStorage(dataDir: string = DEFAULT_DATA_DIR): Storage {
         }
       }
 
+      async getLocalApkPath(projectId: string): Promise<string | null> {
+        if ((this.backend as any).getLocalApkPath) {
+          try {
+            return await (this.backend as any).getLocalApkPath(projectId);
+          } catch {
+            // ignore and fallback to local file storage
+          }
+        }
+        const file = new FileStorage(dataDir);
+        return file.getLocalApkPath(projectId);
+      }
+
+      async getLocalApkMeta(projectId: string): Promise<ApkMeta> {
+        if ((this.backend as any).getLocalApkMeta) {
+          try {
+            return await (this.backend as any).getLocalApkMeta(projectId);
+          } catch {
+            // ignore and fallback to local file storage
+          }
+        }
+        const file = new FileStorage(dataDir);
+        return file.getLocalApkMeta(projectId);
+      }
+
       async createApkDownloadUrl(projectId: string): Promise<string | null> {
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -457,14 +486,33 @@ export function createStorage(dataDir: string = DEFAULT_DATA_DIR): Storage {
 
 export const storage = createStorage();
 
-export function getFileStorageLocalApkPath(projectId: string): string | null {
+export async function getFileStorageLocalApkPath(projectId: string): Promise<string | null> {
+  // Prefer direct helper if available on the storage implementation
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyStorage: any = storage as any;
+  if (typeof anyStorage.getLocalApkPath === 'function') {
+    try {
+      return await anyStorage.getLocalApkPath(projectId);
+    } catch (err) {
+      // ignore
+    }
+  }
   if (storage instanceof FileStorage) {
     return storage.getLocalApkPath(projectId);
   }
   return null;
 }
 
-export function getFileStorageLocalApkMeta(projectId: string): ApkMeta {
+export async function getFileStorageLocalApkMeta(projectId: string): Promise<ApkMeta> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const anyStorage: any = storage as any;
+  if (typeof anyStorage.getLocalApkMeta === 'function') {
+    try {
+      return await anyStorage.getLocalApkMeta(projectId);
+    } catch (err) {
+      // ignore
+    }
+  }
   if (storage instanceof FileStorage) {
     return storage.getLocalApkMeta(projectId);
   }

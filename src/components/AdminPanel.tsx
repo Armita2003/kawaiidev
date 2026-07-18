@@ -103,16 +103,19 @@ export default function AdminPanel({
   }, [editingProjectId]);
 
   // Stats
-  const liveCount = projects.filter(p => p.status === 'Live').length;
-  const buggyCount = projects.filter(p => p.status === 'Buggy').length;
-  const sleepingCount = projects.filter(p => p.status === 'Sleeping').length;
-  const totalDownloads = projects.reduce((acc, curr) => acc + curr.downloads, 0);
+  const liveCount = projects.filter((p) => p.status === 'Live').length;
+  const buggyCount = projects.filter((p) => p.status === 'Buggy').length;
+  const sleepingCount = projects.filter((p) => p.status === 'Sleeping').length;
+  const totalDownloads = projects.reduce(
+    (acc, curr) => acc + (typeof curr.downloads === 'number' ? curr.downloads : 0),
+    0,
+  );
 
   // Filtered projects
   const filteredProjects = projects.filter(p => 
-    p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.framework.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.category.toLowerCase().includes(searchTerm.toLowerCase())
+    (p.title ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.framework ?? '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.category ?? '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   // Add tags handler
@@ -221,15 +224,21 @@ export default function AdminPanel({
     const projectId = editingProjectId || title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     const existingProject = editingProjectId ? projects.find((p) => p.id === editingProjectId) : undefined;
 
+    let remoteApkSaved = false;
     if (selectedApkFile) {
-      void saveApkFile(projectId, selectedApkFile, selectedApkFile.name, size).catch((err) => {
+      remoteApkSaved = await saveApkFile(projectId, selectedApkFile, selectedApkFile.name, size).catch((err) => {
         console.error('Failed to save APK file:', err);
+        return false;
       });
     }
 
     const resolvedApk = selectedApkFile
       ? `/api/apks/${encodeURIComponent(projectId)}`
       : apkUrl.trim() || existingProject?.apk;
+
+    if (selectedApkFile && !remoteApkSaved) {
+      alert('APK file was saved locally because remote storage is unavailable. It may not be downloadable from other devices.');
+    }
 
     const newApp: APKProject = {
       id: projectId,

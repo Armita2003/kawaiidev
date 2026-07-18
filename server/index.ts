@@ -83,35 +83,43 @@ async function createServer() {
   });
 
   app.get('/api/apks/:projectId', async (req, res) => {
-    const { projectId } = req.params;
-    const result = await resolveApkGet(projectId);
+    try {
+      const { projectId } = req.params;
+      const result = await resolveApkGet(projectId);
 
-    if (result.kind === 'not_found') {
-      res.sendStatus(404);
-      return;
+      if (result.kind === 'not_found') {
+        res.sendStatus(404);
+        return;
+      }
+
+      const fileName = result.fileName || `${projectId}.apk`;
+      res.setHeader('X-File-Name', encodeURIComponent(fileName));
+      if (typeof result.size === 'string' && result.size.length > 0) {
+        res.setHeader('X-File-Size', result.size);
+      }
+
+      if (result.kind === 'redirect') {
+        res.setHeader('Location', result.url);
+        res.status(302).end();
+        return;
+      }
+
+      res.setHeader('Content-Type', 'application/vnd.android.package-archive');
+      res.setHeader('Content-Disposition', `attachment; filename="${fileName.replace(/"/g, '')}"`);
+
+      if (result.kind === 'stream') {
+        createReadStream(result.filePath).pipe(res);
+        return;
+      }
+
+      res.send(result.data);
+    } catch (err: any) {
+      console.error(`🐾 Error handling GET /api/apks/${req.params.projectId}:`, err);
+      res.status(500).json({ error: err?.message || String(err) });
     }
-
-    res.setHeader('X-File-Name', encodeURIComponent(result.fileName));
-    res.setHeader('X-File-Size', result.size);
-
-    if (result.kind === 'redirect') {
-      res.setHeader('Location', result.url);
-      res.status(302).end();
-      return;
-    }
-
-    res.setHeader('Content-Type', 'application/vnd.android.package-archive');
-    res.setHeader('Content-Disposition', `attachment; filename="${result.fileName.replace(/"/g, '')}"`);
-
-    if (result.kind === 'stream') {
-      createReadStream(result.filePath).pipe(res);
-      return;
-    }
-
-    res.send(result.data);
   });
 
-  app.put('/api/apks/:projectId', express.raw({ limit: '500mb', type: 'application/octet-stream' }), async (req, res) => {
+  app.put('/api/apks/:projectId', express.raw({ limit: '500mb', type: '*/*' }), async (req, res) => {
     try {
       const contentType = String(req.headers['content-type'] || '');
 
@@ -133,7 +141,7 @@ async function createServer() {
       const fileName = decodeURIComponent(String(req.headers['x-file-name'] || `${req.params.projectId}.apk`));
       const size = String(req.headers['x-file-size'] || '');
       const body = Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0);
-      console.log(`🐾 Received PUT /api/apks/${req.params.projectId} - fileName=${fileName} sizeHeader=${size} bytes=${body.length}`);
+      console.log(`🐾 Received PUT /api/apks/${req.params.projectId} - contentType=${contentType} fileName=${fileName} sizeHeader=${size} bytes=${body.length}`);
       const result = await resolveApkPut(req.params.projectId, { rawBody: body, fileName, size });
       console.log(`🐾 Completed putApk for ${req.params.projectId}`);
       res.json(result);
