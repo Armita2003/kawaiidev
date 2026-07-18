@@ -137,8 +137,27 @@ async function uploadViaRawPut(projectId: string, blob: Blob, fileName: string, 
 
 export async function saveApkFile(projectId: string, blob: Blob, fileName: string, size: string): Promise<boolean> {
   try {
-    // Try raw PUT to the API first (works reliably from browser). If that fails,
-    // fall back to signed upload flow which may be blocked by CORS in some setups.
+    const isProd = typeof window !== 'undefined' && window.location && !/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname);
+
+    if (isProd) {
+      // On Vercel use signed uploads first to avoid serverless body limits
+      const usedSignedUpload = await uploadViaSignedUrl(projectId, blob, fileName, size).catch((err) => {
+        console.warn('Signed upload unavailable in production, trying raw PUT:', err);
+        return false;
+      });
+      if (usedSignedUpload) return true;
+
+      try {
+        await uploadViaRawPut(projectId, blob, fileName, size);
+        return true;
+      } catch (err) {
+        console.warn('Raw PUT also failed in production:', err);
+      }
+
+      return false;
+    }
+
+    // Local/dev: try raw PUT first (simpler for local dev servers)
     try {
       await uploadViaRawPut(projectId, blob, fileName, size);
       return true;
