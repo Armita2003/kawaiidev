@@ -1,4 +1,5 @@
 import { INITIAL_PROJECTS, INITIAL_STATS } from '../src/data.js';
+import type { BugReport } from '../src/types.js';
 import fs from 'fs';
 import path from 'path';
 import {
@@ -11,6 +12,7 @@ import {
 
 const PROJECTS_KEY = 'projects.json';
 const STATS_KEY = 'stats.json';
+const BUG_REPORTS_KEY = 'bug-reports.json';
 
 export async function getProjects() {
   return INITIAL_PROJECTS.map((project) => ({ ...project }));
@@ -26,6 +28,15 @@ export async function getStats() {
 
 export async function putStats(body: unknown) {
   await storage.writeJson(STATS_KEY, body);
+  return { ok: true as const };
+}
+
+export async function getBugReports() {
+  return storage.readJson<BugReport[]>(BUG_REPORTS_KEY, []);
+}
+
+export async function putBugReports(body: unknown) {
+  await storage.writeJson(BUG_REPORTS_KEY, body);
   return { ok: true as const };
 }
 

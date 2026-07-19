@@ -7,10 +7,12 @@ import path from 'path';
 import { INITIAL_PROJECTS, INITIAL_STATS } from '../src/data.js';
 import {
   deleteApk,
+  getBugReports,
   getHealthInfo,
   getProjects,
   getStats,
   headApk,
+  putBugReports,
   putProjects,
   putStats,
   resolveApkGet,
@@ -74,6 +76,20 @@ async function createServer() {
       res.json(result);
     } catch (err: any) {
       console.error('🐾 Error handling PUT /api/stats:', err);
+      res.status(500).json({ error: err?.message || String(err) });
+    }
+  });
+
+  app.get('/api/bug-reports', async (_req, res) => {
+    res.json(await getBugReports());
+  });
+
+  app.put('/api/bug-reports', async (req, res) => {
+    try {
+      const result = await putBugReports(req.body);
+      res.json(result);
+    } catch (err: any) {
+      console.error('🐾 Error handling PUT /api/bug-reports:', err);
       res.status(500).json({ error: err?.message || String(err) });
     }
   });

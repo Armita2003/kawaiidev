@@ -1,9 +1,10 @@
 import { INITIAL_PROJECTS, INITIAL_STATS } from '../data';
-import { APKProject, GlobalStats } from '../types';
+import { APKProject, BugReport, GlobalStats } from '../types';
 
 const API_BASE = '/api';
 const PROJECTS_STORAGE_KEY = 'kawaii_projects';
 const STATS_STORAGE_KEY = 'kawaii_stats';
+const BUG_REPORTS_STORAGE_KEY = 'kawaii_bug_reports';
 
 function readStorageJson<T>(key: string, fallback: T): T {
   if (typeof window === 'undefined') return fallback;
@@ -55,5 +56,25 @@ export async function saveStats(stats: GlobalStats): Promise<void> {
     });
   } catch {
     writeStorageJson(STATS_STORAGE_KEY, stats);
+  }
+}
+
+export async function fetchBugReports(): Promise<BugReport[]> {
+  try {
+    return await apiFetch<BugReport[]>('/bug-reports');
+  } catch {
+    return readStorageJson<BugReport[]>(BUG_REPORTS_STORAGE_KEY, []);
+  }
+}
+
+export async function saveBugReports(bugReports: BugReport[]): Promise<void> {
+  try {
+    await apiFetch('/bug-reports', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bugReports),
+    });
+  } catch {
+    writeStorageJson(BUG_REPORTS_STORAGE_KEY, bugReports);
   }
 }

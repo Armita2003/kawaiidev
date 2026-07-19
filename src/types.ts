@@ -5,6 +5,8 @@ export interface BugReport {
   description: string;
   createdAt: string;
   resolved?: boolean;
+  projectId?: string;
+  projectTitle?: string;
 }
 
 export interface APKProject {

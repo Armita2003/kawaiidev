@@ -9,9 +9,9 @@ import Sidebar from './components/Sidebar';
 import Dashboard from './components/Dashboard';
 import ProjectDetail from './components/ProjectDetail';
 import AdminPanel from './components/AdminPanel';
-import { APKProject, GlobalStats } from './types';
+import { APKProject, BugReport, GlobalStats } from './types';
 import { INITIAL_PROJECTS, INITIAL_STATS } from './data';
-import { fetchProjects, saveProjects, fetchStats, saveStats } from './utils/api';
+import { fetchProjects, saveProjects, fetchStats, saveStats, fetchBugReports, saveBugReports } from './utils/api';
 import { getProjectApkUrl } from './utils/apkUrl';
 import { Sparkles, Terminal, Download, Check, Coffee, Heart, Lock, Unlock } from 'lucide-react';
 
@@ -46,16 +46,35 @@ export default function App() {
   // const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showSuccessNotification, setShowSuccessNotification] = useState<string | null>(null);
 
+  const mergeBugReportsIntoProjects = (baseProjects: APKProject[], bugReports: BugReport[]) => {
+    return baseProjects.map((project) => {
+      const projectBugReports = bugReports
+        .filter((report) => report.projectId === project.id)
+        .map((report) => ({
+          id: report.id,
+          description: report.description,
+          createdAt: report.createdAt,
+          resolved: report.resolved,
+        }));
+
+      return projectBugReports.length > 0
+        ? { ...project, bugReports: projectBugReports }
+        : project;
+    });
+  };
+
   const refreshProjects = async () => {
     try {
-      const [serverProjects, serverStats] = await Promise.all([
+      const [serverProjects, serverStats, serverBugReports] = await Promise.all([
         fetchProjects(),
         fetchStats(),
+        fetchBugReports(),
       ]);
-      setProjects(serverProjects);
+      const projectsWithBugReports = mergeBugReportsIntoProjects(serverProjects, serverBugReports);
+      setProjects(projectsWithBugReports);
       setStats({
         boops: serverStats.boops ?? 0,
-        bugs: serverStats.bugs ?? 0,
+        bugs: serverBugReports.filter((report) => !report.resolved).length,
         coffeeLitres: serverStats.coffeeLitres ?? 0,
         likes: serverStats.likes ?? 0,
       });
@@ -161,12 +180,21 @@ export default function App() {
     });
   };
 
-  const handleReportBug = (projectId: string, description: string) => {
+  const handleReportBug = async (projectId: string, description: string) => {
     const trimmedDescription = description.trim();
     if (!trimmedDescription) return;
 
     const project = projects.find((item) => item.id === projectId);
     if (!project) return;
+
+    const newBugReport: BugReport = {
+      id: `${project.id}-${Date.now()}`,
+      description: trimmedDescription,
+      createdAt: new Date().toLocaleString(),
+      resolved: false,
+      projectId: project.id,
+      projectTitle: project.title,
+    };
 
     const updatedProjects = projects.map((item) =>
       item.id === projectId
@@ -175,17 +203,34 @@ export default function App() {
             bugReports: [
               ...(item.bugReports ?? []),
               {
-                id: `${item.id}-${Date.now()}`,
-                description: trimmedDescription,
-                createdAt: new Date().toLocaleString(),
-                resolved: false
+                id: newBugReport.id,
+                description: newBugReport.description,
+                createdAt: newBugReport.createdAt,
+                resolved: false,
               }
             ]
           }
         : item
     );
 
+    const bugEntries = updatedProjects.flatMap((item) =>
+      (item.bugReports ?? []).map((report) => ({
+        ...report,
+        projectId: item.id,
+        projectTitle: item.title,
+        resolved: Boolean(report.resolved),
+      }))
+    );
+
+    await saveBugReports(bugEntries);
     persistProjects(updatedProjects);
+
+    const updatedStats = {
+      ...stats,
+      bugs: bugEntries.filter((report) => !report.resolved).length,
+    };
+    persistStats(updatedStats);
+
     setSelectedProject((currentSelectedProject) => {
       if (currentSelectedProject?.id === projectId) {
         return updatedProjects.find((item) => item.id === projectId) ?? currentSelectedProject;
@@ -195,7 +240,7 @@ export default function App() {
     triggerToast(`🐛 Bug reported for ${project.title}.`);
   };
 
-  const handleToggleBugStatus = (projectId: string, bugId: string) => {
+  const handleToggleBugStatus = async (projectId: string, bugId: string) => {
     const updatedProjects = projects.map((item) => {
       if (item.id !== projectId) return item;
 
@@ -207,7 +252,24 @@ export default function App() {
       };
     });
 
+    const bugEntries = updatedProjects.flatMap((item) =>
+      (item.bugReports ?? []).map((report) => ({
+        ...report,
+        projectId: item.id,
+        projectTitle: item.title,
+        resolved: Boolean(report.resolved),
+      }))
+    );
+
+    await saveBugReports(bugEntries);
     persistProjects(updatedProjects);
+
+    const updatedStats = {
+      ...stats,
+      bugs: bugEntries.filter((report) => !report.resolved).length,
+    };
+    persistStats(updatedStats);
+
     setSelectedProject((currentSelectedProject) => {
       if (currentSelectedProject?.id === projectId) {
         return updatedProjects.find((item) => item.id === projectId) ?? currentSelectedProject;
