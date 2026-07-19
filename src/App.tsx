@@ -46,25 +46,30 @@ export default function App() {
   // const [showGitHubModal, setShowGitHubModal] = useState(false);
   const [showSuccessNotification, setShowSuccessNotification] = useState<string | null>(null);
 
+  const refreshProjects = async () => {
+    try {
+      const [serverProjects, serverStats] = await Promise.all([
+        fetchProjects(),
+        fetchStats(),
+      ]);
+      setProjects(serverProjects);
+      setStats({
+        boops: serverStats.boops ?? 0,
+        bugs: serverStats.bugs ?? 0,
+        coffeeLitres: serverStats.coffeeLitres ?? 0,
+        likes: serverStats.likes ?? 0,
+      });
+    } catch (err) {
+      console.error('Failed to reload projects from server, using defaults:', err);
+      setProjects(INITIAL_PROJECTS.map((project) => ({ ...project })));
+      setStats(INITIAL_STATS);
+    }
+  };
+
   // Load shared data from server so all devices see the same APKs
   useEffect(() => {
     async function loadData() {
-      try {
-        const [serverProjects, serverStats] = await Promise.all([
-          fetchProjects(),
-          fetchStats(),
-        ]);
-        setProjects(serverProjects);
-        setStats({
-          boops: serverStats.boops ?? 0,
-          bugs: serverStats.bugs ?? 0,
-          coffeeLitres: serverStats.coffeeLitres ?? 0,
-          likes: serverStats.likes ?? 0,
-        });
-      } catch (err) {
-        console.error('Failed to load from server, using defaults:', err);
-        setProjects(INITIAL_PROJECTS);
-      }
+      await refreshProjects();
       setLoadingProjects(false);
     }
     loadData();

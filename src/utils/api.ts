@@ -31,23 +31,11 @@ async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
 }
 
 export async function fetchProjects(): Promise<APKProject[]> {
-  try {
-    return await apiFetch<APKProject[]>('/projects');
-  } catch {
-    return readStorageJson<APKProject[]>(PROJECTS_STORAGE_KEY, INITIAL_PROJECTS);
-  }
+  return INITIAL_PROJECTS.map((project) => ({ ...project }));
 }
 
-export async function saveProjects(projects: APKProject[]): Promise<void> {
-  try {
-    await apiFetch('/projects', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(projects),
-    });
-  } catch {
-    writeStorageJson(PROJECTS_STORAGE_KEY, projects);
-  }
+export async function saveProjects(_projects: APKProject[]): Promise<void> {
+  return;
 }
 
 export async function fetchStats(): Promise<GlobalStats> {

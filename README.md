@@ -8,7 +8,7 @@
    `npm run dev`
 3. Kill Working Port :
    `Get-NetTCPConnection -LocalPort 3000 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id $_ -Force }`
-   
+
 ## Production
 
 1. Build the frontend: `npm run build`
@@ -45,12 +45,14 @@ on conflict (key) do nothing;
 
 ### 2. Configure environment variables
 
-Copy `.env.example` to `.env` and set:
+Copy `.env.example` to `.env` and set the same values for both local development and Vercel:
 
 ```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 ```
+
+This ensures local changes, project updates, and APK uploads all read and write to the same shared Supabase backend.
 
 Never expose the service role key in frontend code. It is server-only.
 
@@ -77,6 +79,7 @@ Check `/api/health` to confirm the active backend: `{ "ok": true, "storage": "su
 Omit the Supabase env vars and the app falls back to the `data/` directory. Optionally override the path with `DATA_DIR=./data`.
 
 **Linking APKs:** Add an `apk` field to each project in `data.ts` (or via admin panel):
+
 - Local file: `apk: '/apks/myapp.apk'` (put the file in `public/apks/`)
 - Server file: `apk: '/api/apks/project-id'` (upload via admin panel or place in `data/apks/`)
 - External URL: `apk: 'https://example.com/app.apk'`

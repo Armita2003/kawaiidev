@@ -1,4 +1,6 @@
 import { INITIAL_PROJECTS, INITIAL_STATS } from '../src/data.js';
+import fs from 'fs';
+import path from 'path';
 import {
   getFileStorageLocalApkMeta,
   getFileStorageLocalApkPath,
@@ -11,11 +13,10 @@ const PROJECTS_KEY = 'projects.json';
 const STATS_KEY = 'stats.json';
 
 export async function getProjects() {
-  return storage.readJson(PROJECTS_KEY, INITIAL_PROJECTS);
+  return INITIAL_PROJECTS.map((project) => ({ ...project }));
 }
 
-export async function putProjects(body: unknown) {
-  await storage.writeJson(PROJECTS_KEY, body);
+export async function putProjects(_body: unknown) {
   return { ok: true as const };
 }
 
@@ -69,6 +70,47 @@ export async function putApk(projectId: string, data: Buffer, fileName: string, 
 export async function deleteApk(projectId: string) {
   await storage.deleteApk(projectId);
   return { ok: true as const };
+}
+
+export async function getPublicApks() {
+  const catalogPath = path.join(process.cwd(), 'data', 'apks', 'catalog.json');
+  if (fs.existsSync(catalogPath)) {
+    try {
+      const parsed = JSON.parse(fs.readFileSync(catalogPath, 'utf8')) as Array<{ name?: string; url?: string; size?: string }>;
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item) => item && typeof item.name === 'string' && typeof item.url === 'string')
+          .map((item) => ({
+            name: item.name as string,
+            url: item.url as string,
+            size: typeof item.size === 'string' ? item.size : '',
+          }));
+      }
+    } catch (err) {
+      console.warn('Failed to read APK catalog from data/apks/catalog.json:', err);
+    }
+  }
+
+  const publicDir = path.join(process.cwd(), 'public', 'apks');
+  if (!fs.existsSync(publicDir)) return [];
+
+  try {
+    const files = fs.readdirSync(publicDir).filter((f) => f.toLowerCase().endsWith('.apk'));
+    return files.map((file) => {
+      const fp = path.join(publicDir, file);
+      let size = '';
+      try {
+        const stat = fs.statSync(fp);
+        size = `${Math.round(stat.size / 1024)} KB`;
+      } catch {
+        size = '';
+      }
+      return { name: file, url: `/apks/${encodeURIComponent(file)}`, size };
+    });
+  } catch (err) {
+    console.error('Failed to list public/apks:', err);
+    return [];
+  }
 }
 
 export type ApkGetResult =

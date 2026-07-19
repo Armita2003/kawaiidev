@@ -21,7 +21,8 @@ import {
   X,
   Coffee,
   Bug,
-  ListChecks
+  ListChecks,
+  RefreshCw
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -33,6 +34,7 @@ interface AdminPanelProps {
   onTabChange: (tab: 'all_projects' | 'add_apk' | 'analytics' | 'settings' | 'bugs') => void;
   onProjectSelect: (project: APKProject) => void;
   onToggleBugStatus: (projectId: string, bugId: string) => void;
+  onRefreshProjects: () => Promise<void> | void;
 }
 
 export default function AdminPanel({
@@ -43,7 +45,8 @@ export default function AdminPanel({
   activeTab,
   onTabChange,
   onProjectSelect,
-  onToggleBugStatus
+  onToggleBugStatus,
+  onRefreshProjects
 }: AdminPanelProps) {
   
   // States for general search/filter
@@ -65,8 +68,10 @@ export default function AdminPanel({
   const [apkFileName, setApkFileName] = useState<string | null>(null);
   const [selectedApkFile, setSelectedApkFile] = useState<File | null>(null);
   const [apkUrl, setApkUrl] = useState('');
+  const [publicApkFiles, setPublicApkFiles] = useState<Array<{name: string; url: string; size: string}>>([]);
   const [screenshotPreview, setScreenshotPreview] = useState<string>('/images/MainImage.jpg');
   const [coverUrl, setCoverUrl] = useState<string>('');
+  const [isRefreshingProjects, setIsRefreshingProjects] = useState(false);
   
   // Custom screenshot editor states
   const [screenshotFit, setScreenshotFit] = useState<'cover' | 'contain'>('cover');
@@ -101,6 +106,17 @@ export default function AdminPanel({
       setSelectedApkFile(null);
     }
   }, [editingProjectId]);
+
+  // Load APKs placed in public/apks for quick selection
+  useEffect(() => {
+    fetch('/api/public-apks')
+      .then((r) => r.ok ? r.json() : [])
+      .then((list) => setPublicApkFiles(Array.isArray(list) ? list : []))
+      .catch((err) => {
+        console.warn('Failed to fetch public apks:', err);
+        setPublicApkFiles([]);
+      });
+  }, []);
 
   // Stats
   const liveCount = projects.filter((p) => p.status === 'Live').length;
@@ -322,6 +338,15 @@ export default function AdminPanel({
     }
   };
 
+  const handleRefreshProjects = async () => {
+    setIsRefreshingProjects(true);
+    try {
+      await onRefreshProjects();
+    } finally {
+      setIsRefreshingProjects(false);
+    }
+  };
+
   return (
     <div className="flex-1 p-4 md:p-8 overflow-y-auto max-w-7xl mx-auto w-full animate-fadeIn">
       {/* Tab: All Projects List */}
@@ -338,16 +363,26 @@ export default function AdminPanel({
                 Welcome back, Dev! You have <span className="font-bold text-primary">{projects.length} projects</span> currently floating in local stash.
               </p>
             </div>
-            <button
-              onClick={() => {
-                resetForm();
-                onTabChange('add_apk');
-              }}
-              className="flex items-center gap-2 px-6 py-3.5 bg-primary text-on-primary font-display font-extrabold text-base rounded-xl border-2 border-on-background shadow-[4px_4px_0px_0px_rgba(22,29,31,1)] active-squish cursor-pointer"
-            >
-              <PlusSquare className="w-5 h-5" />
-              NEW APK
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleRefreshProjects}
+                disabled={isRefreshingProjects}
+                className="flex items-center gap-2 px-4 py-3 bg-white text-on-surface font-display font-extrabold text-sm rounded-xl border-2 border-on-background shadow-[3px_3px_0px_0px_rgba(22,29,31,1)] active-squish cursor-pointer disabled:opacity-70"
+              >
+                <RefreshCw className={`w-4 h-4 ${isRefreshingProjects ? 'animate-spin' : ''}`} />
+                {isRefreshingProjects ? 'REFRESHING…' : 'REFRESH PROJECTS'}
+              </button>
+              <button
+                onClick={() => {
+                  resetForm();
+                  onTabChange('add_apk');
+                }}
+                className="flex items-center gap-2 px-6 py-3.5 bg-primary text-on-primary font-display font-extrabold text-base rounded-xl border-2 border-on-background shadow-[4px_4px_0px_0px_rgba(22,29,31,1)] active-squish cursor-pointer"
+              >
+                <PlusSquare className="w-5 h-5" />
+                NEW APK
+              </button>
+            </div>
           </div>
 
           {/* Stats row */}
@@ -621,8 +656,32 @@ export default function AdminPanel({
                     onChange={(e) => setApkUrl(e.target.value)}
                     className="w-full bg-white border-2 border-on-background rounded-lg p-2.5 font-sans text-xs focus:ring-0 focus:border-primary outline-none transition-all"
                   />
+                  {publicApkFiles.length > 0 && (
+                    <div className="mt-2">
+                      <label className="block font-display font-bold text-[10px] text-on-surface mb-1">Select from APK catalog</label>
+                      <select
+                        value={apkUrl}
+                        onChange={(e) => {
+                          const url = e.target.value;
+                          setApkUrl(url);
+                          const sel = publicApkFiles.find((f) => f.url === url);
+                          if (sel) {
+                            setApkFileName(sel.name);
+                            setSize(sel.size || '');
+                            setSelectedApkFile(null);
+                          }
+                        }}
+                        className="w-full bg-white border-2 border-on-background rounded-lg p-2.5 font-sans text-xs focus:ring-0 focus:border-primary outline-none"
+                      >
+                        <option value="">-- choose bundled APK file --</option>
+                        {publicApkFiles.map((f) => (
+                          <option key={f.name} value={f.url}>{f.name} {f.size ? `(${f.size})` : ''}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   <p className="text-[10px] text-on-surface-variant font-mono mt-1">
-                    Put APKs in <code className="bg-slate-100 px-1 rounded">public/apks/</code> or <code className="bg-slate-100 px-1 rounded">data/apks/</code>, or paste an external URL. Leave blank to use uploaded file.
+                    Put APKs in <code className="bg-slate-100 px-1 rounded">public/apks/</code> or the APK catalog in <code className="bg-slate-100 px-1 rounded">data/apks/catalog.json</code>, or paste an external URL. Leave blank to use uploaded file.
                   </p>
                 </div>
 
