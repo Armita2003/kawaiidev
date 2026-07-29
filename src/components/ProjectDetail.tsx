@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 import { APKProject } from '../types';
-import { getProjectApkUrl } from '../utils/apkUrl';
+import { getProjectLaunchUrl, isWebsiteProject } from '../utils/projectUrl';
+import PreviewFrame from './PreviewFrame';
 import { 
   ArrowLeft, 
   CheckCircle, 
   AlertTriangle, 
   Download, 
-  Smartphone, 
+  ExternalLink,
   ClipboardCheck, 
   Sprout,
   Check,
   AlertCircle,
   Bug,
   Send,
-  Icon,
   X
 } from 'lucide-react';
 
@@ -28,16 +28,17 @@ export default function ProjectDetail({ project, onBack, onDownloadAPK, onReport
   const [copiedLink, setCopiedLink] = useState(false);
   const [bugInput, setBugInput] = useState('');
   const [showBugModal, setShowBugModal] = useState(false);
+  const isWebsite = isWebsiteProject(project);
 
-  const downloadUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}${getProjectApkUrl(project)}`
-    : getProjectApkUrl(project);
+  const launchUrl = typeof window !== 'undefined'
+    ? getProjectLaunchUrl(project)
+    : getProjectLaunchUrl(project);
 
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(downloadUrl)}&color=000000&bgcolor=FFFFFF`;
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(launchUrl)}&color=000000&bgcolor=FFFFFF`;
 
   const handleCopyLink = () => {
     if (typeof navigator !== 'undefined' && navigator.clipboard) {
-      navigator.clipboard.writeText(downloadUrl)
+      navigator.clipboard.writeText(launchUrl)
         .then(() => {
           setCopiedLink(true);
         })
@@ -77,43 +78,7 @@ export default function ProjectDetail({ project, onBack, onDownloadAPK, onReport
       <div id="project-detail-layout-grid" className="grid grid-cols-1 md:grid-cols-12 gap-12">
         {/* Left Column: Phone mockup frame & Mascot */}
         <div id="project-detail-left-col" className="md:col-span-5 flex flex-col gap-8">
-          
-          {/* Screenshot Frame mockup */}
-          <div className="relative group max-w-[320px] mx-auto w-full">
-            {/* Ambient Background Squishy Blobs */}
-            <div className="absolute -top-6 -left-6 w-48 h-48 bg-primary-container opacity-40 blob-bg z-0 animate-pulse"></div>
-            <div className="absolute -bottom-8 -right-8 w-60 h-60 bg-secondary-container opacity-40 blob-bg z-0 animate-bounce duration-4000"></div>
-            
-            {/* Neumorphic/NeoBrutalist Phone Outer Shell */}
-            <div className="relative z-10 bg-white border-3 border-on-background rounded-[36px] p-2.5 shadow-[8px_8px_0px_0px_rgba(22,29,31,1)]">
-              {/* Dynamic camera notch mockup */}
-              <div className="absolute top-5 left-1/2 -translate-x-1/2 w-32 h-6 bg-on-background rounded-full z-20 flex items-center justify-center">
-                <div className="w-2.5 h-2.5 rounded-full bg-slate-800 ml-2"></div>
-                <div className="w-1.5 h-1.5 rounded-full bg-slate-900 ml-auto mr-3"></div>
-              </div>
-
-              {/* Screenshot container */}
-              <div 
-                className="relative overflow-hidden rounded-[28px] border-2 border-on-background aspect-[9/19] flex items-center justify-center transition-colors duration-200"
-                style={{ backgroundColor: project.screenshotBgColor || '#f1f5f9' }}
-              >
-                <img 
-                  className="w-full h-full select-none pointer-events-none" 
-                  src={project.screenshotUrl} 
-                  alt={`${project.title} Interface Screenshot`}
-                  style={{
-                    objectFit: project.screenshotFit || 'cover',
-                    transform: `translate(${project.screenshotXOffset || 0}px, ${project.screenshotYOffset || 0}px) scale(${(project.screenshotScale !== undefined ? project.screenshotScale : 100) / 100}) rotate(${project.screenshotRotate || 0}deg)`,
-                  }}
-                />
-              </div>
-            </div>
-
-            {/* Rotating Badges */}
-            <div className="absolute -top-4 -right-4 z-20 bg-tertiary-container text-on-tertiary-container border-2 border-on-background rounded-full px-4 py-1.5 font-display font-bold text-xs shadow-[3px_3px_0px_0px_rgba(22,29,31,1)] rotate-12">
-              {project.version}
-            </div>
-          </div>
+          <PreviewFrame project={project} />
 
           {/* Quirky Mascot Message box */}
           <div className="bg-surface-container-low border-2 border-on-background rounded-xl p-5 flex items-start gap-4 shadow-[4px_4px_0px_0px_rgba(22,29,31,1)]">
@@ -202,15 +167,26 @@ export default function ProjectDetail({ project, onBack, onDownloadAPK, onReport
             <div className="flex-1 w-full text-center md:text-left">
               <h2 className="font-display text-2xl font-extrabold text-on-surface mb-2">Ready to try it?</h2>
               <p className="font-sans text-xs text-on-surface-variant mb-6 leading-relaxed">
-                Scan the QR code to install directly on your device, copy a mock download link, or hit the big squishy button below.
+                {isWebsite
+                  ? 'Scan the QR code to open the live site, copy the link, or hit the button below to launch it in a new tab.'
+                  : 'Scan the QR code to install directly on your device, copy a mock download link, or hit the big squishy button below.'}
               </p>
               
               <button 
                 onClick={() => onDownloadAPK(project.id)}
                 className="w-full md:w-auto bg-primary hover:bg-primary/95 text-on-primary px-6 py-3 rounded-xl border-2 border-on-background font-display font-bold text-base shadow-[4px_4px_0px_0px_rgba(22,29,31,1)] flex items-center justify-center gap-2 active-squish cursor-pointer"
               >
-                <Download className="w-5 h-5" />
-                Download APK ({project.size})
+                {isWebsite ? (
+                  <>
+                    <ExternalLink className="w-5 h-5" />
+                    Open Site
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-5 h-5" />
+                    Download APK ({project.size})
+                  </>
+                )}
               </button>
             </div>
 
@@ -234,7 +210,7 @@ export default function ProjectDetail({ project, onBack, onDownloadAPK, onReport
                     <ClipboardCheck className="w-3.5 h-3.5" /> Link Copied!
                   </span>
                 ) : (
-                  "Boop QR to copy link"
+                  isWebsite ? 'Boop QR to copy site link' : 'Boop QR to copy link'
                 )}
               </span>
             </div>
@@ -282,11 +258,11 @@ export default function ProjectDetail({ project, onBack, onDownloadAPK, onReport
           {/* Technical Specs bento grid list */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
             <div className="p-4 border-2 border-on-background rounded-xl bg-surface-container-low text-center shadow-[2px_2px_0px_0px_rgba(22,29,31,1)]">
-              <p className="font-display font-bold text-[10px] text-on-surface-variant uppercase tracking-wider mb-1">File Size</p>
+              <p className="font-display font-bold text-[10px] text-on-surface-variant uppercase tracking-wider mb-1">{isWebsite ? 'Bundle Size' : 'File Size'}</p>
               <p className="font-display font-extrabold text-sm text-on-surface">{project.size}</p>
             </div>
             <div className="p-4 border-2 border-on-background rounded-xl bg-surface-container-low text-center shadow-[2px_2px_0px_0px_rgba(22,29,31,1)]">
-              <p className="font-display font-bold text-[10px] text-on-surface-variant uppercase tracking-wider mb-1">Min Android API</p>
+              <p className="font-display font-bold text-[10px] text-on-surface-variant uppercase tracking-wider mb-1">{isWebsite ? 'Requirements' : 'Min Android API'}</p>
               <p className="font-display font-extrabold text-sm text-on-surface">{project.minApi}</p>
             </div>
             <div className="p-4 border-2 border-on-background rounded-xl bg-surface-container-low text-center shadow-[2px_2px_0px_0px_rgba(22,29,31,1)]">

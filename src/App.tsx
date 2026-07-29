@@ -13,6 +13,7 @@ import { APKProject, BugReport, GlobalStats } from './types';
 import { INITIAL_PROJECTS, INITIAL_STATS } from './data';
 import { fetchProjects, saveProjects, fetchStats, saveStats, fetchBugReports, saveBugReports } from './utils/api';
 import { getProjectApkUrl } from './utils/apkUrl';
+import { getProjectLaunchUrl, isWebsiteProject } from './utils/projectUrl';
 import { Sparkles, Terminal, Download, Check, Coffee, Heart, Lock, Unlock } from 'lucide-react';
 
 export default function App() {
@@ -293,6 +294,31 @@ export default function App() {
   const handleDownloadAPK = (projectId: string) => {
     const app = projects.find(p => p.id === projectId);
     if (!app) return;
+
+    if (isWebsiteProject(app)) {
+      window.open(getProjectLaunchUrl(app), '_blank', 'noopener,noreferrer');
+
+      setProjects((prevProjects) => {
+        const updated = prevProjects.map(p =>
+          p.id === projectId ? { ...p, downloads: p.downloads + 1 } : p
+        );
+        saveProjects(updated).catch((err) => console.error('Failed to save visit count:', err));
+        return updated;
+      });
+
+      setStats((prevStats) => {
+        const updated = {
+          ...prevStats,
+          boops: prevStats.boops + 1,
+          coffeeLitres: prevStats.coffeeLitres + 0.2,
+        };
+        saveStats(updated).catch((err) => console.error('Failed to save stats:', err));
+        return updated;
+      });
+
+      triggerToast(`🌐 Opening ${app.title} in a new tab!`);
+      return;
+    }
 
     // Must fire synchronously on click — async fetch breaks downloads on mobile Chrome
     triggerActualFileDownload(app);

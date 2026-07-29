@@ -1,9 +1,11 @@
 import React from 'react';
 import { APKProject, GlobalStats } from '../types';
+import { isWebsiteProject } from '../utils/projectUrl';
 import { 
   Rocket, 
   // Github, 
   Download, 
+  ExternalLink,
   Coffee, 
   Bug, 
   Cpu, 
@@ -166,6 +168,7 @@ export default function Dashboard({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {projects.map((project, idx) => {
             const isAsymmetricLarge = project.id === 'nap-master-pro';
+            const isWebsite = isWebsiteProject(project);
             const cardBgClass = getContainerBg(idx);
             const cardTextClass = getTextColor(idx);
 
@@ -201,8 +204,17 @@ export default function Dashboard({
                         onClick={() => onDownloadAPK(project.id)}
                         className="px-5 py-2.5 bg-primary text-on-primary border-2 border-on-background shadow-[4px_4px_0px_0px_rgba(22,29,31,1)] font-display font-bold rounded-xl flex items-center gap-2 active-squish cursor-pointer"
                       >
-                        <Download className="w-4 h-4" />
-                        Boop to Download ({project.version})
+                        {isWebsite ? (
+                          <>
+                            <ExternalLink className="w-4 h-4" />
+                            Open Site ({project.version})
+                          </>
+                        ) : (
+                          <>
+                            <Download className="w-4 h-4" />
+                            Boop to Download ({project.version})
+                          </>
+                        )}
                       </button>
                       <button 
                         onClick={() => onProjectSelect(project)}
@@ -281,8 +293,17 @@ export default function Dashboard({
                     onClick={() => onDownloadAPK(project.id)}
                     className="w-full py-2.5 bg-primary text-on-primary border-2 border-on-background shadow-[3px_3px_0px_0px_rgba(22,29,31,1)] text-xs font-display font-bold rounded-lg flex justify-center items-center gap-1.5 active-squish cursor-pointer hover:bg-primary/95"
                   >
-                    <Download className="w-3.5 h-3.5" />
-                    Boop to Download
+                    {isWebsite ? (
+                      <>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Open Site
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-3.5 h-3.5" />
+                        Boop to Download
+                      </>
+                    )}
                   </button>
                   <button
                     onClick={() => onProjectSelect(project)}

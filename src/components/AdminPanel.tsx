@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { APKProject, AppStatus } from '../types';
+import { APKProject, AppStatus, PreviewFrame, ProjectType } from '../types';
+import PreviewFrameMockup from './PreviewFrame';
 import { saveApkFile, getApkFile, deleteApkFile } from '../utils/apkDb';
 import { 
   Plus, 
@@ -68,6 +69,9 @@ export default function AdminPanel({
   const [apkFileName, setApkFileName] = useState<string | null>(null);
   const [selectedApkFile, setSelectedApkFile] = useState<File | null>(null);
   const [apkUrl, setApkUrl] = useState('');
+  const [projectType, setProjectType] = useState<ProjectType>('apk');
+  const [siteUrl, setSiteUrl] = useState('');
+  const [previewFrame, setPreviewFrame] = useState<PreviewFrame>('mobile');
   const [publicApkFiles, setPublicApkFiles] = useState<Array<{name: string; url: string; size: string}>>([]);
   const [screenshotPreview, setScreenshotPreview] = useState<string>('/images/MainImage.jpg');
   const [coverUrl, setCoverUrl] = useState<string>('');
@@ -219,6 +223,9 @@ export default function AdminPanel({
     setApkFileName(null);
     setSelectedApkFile(null);
     setApkUrl('');
+    setProjectType('apk');
+    setSiteUrl('');
+    setPreviewFrame('mobile');
     setScreenshotPreview('/images/MainImage.jpg');
     setCoverUrl('');
     setScreenshotFit('cover');
@@ -233,7 +240,12 @@ export default function AdminPanel({
   const handleDeploy = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
-      alert('🐾 Mascot says: Please provide a descriptive title for your APK!');
+      alert('🐾 Mascot says: Please provide a descriptive title for your project!');
+      return;
+    }
+
+    if (projectType === 'website' && !siteUrl.trim()) {
+      alert('🐾 Mascot says: Website projects need a live site URL!');
       return;
     }
 
@@ -281,7 +293,10 @@ export default function AdminPanel({
       screenshotBgColor,
       screenshotRotate,
       coverUrl: coverUrl || undefined,
-      apk: resolvedApk,
+      apk: projectType === 'apk' ? resolvedApk : undefined,
+      projectType,
+      siteUrl: projectType === 'website' ? siteUrl.trim() : undefined,
+      previewFrame,
       iconType: category.toLowerCase().includes('coffee') ? 'coffee' : 'alarm',
       worksGreat: [
         // 'Passed rigorous automated simulated health checks.',
@@ -325,6 +340,9 @@ export default function AdminPanel({
     setScreenshotBgColor(project.screenshotBgColor || '#f1f5f9');
     setScreenshotRotate(project.screenshotRotate !== undefined ? project.screenshotRotate : 0);
     setApkUrl(project.apk || '');
+    setProjectType(project.projectType || 'apk');
+    setSiteUrl(project.siteUrl || '');
+    setPreviewFrame(project.previewFrame || 'mobile');
     onTabChange('add_apk');
   };
 
@@ -648,6 +666,50 @@ export default function AdminPanel({
               {/* Right Form Column: File Drag Drop & Screenshots */}
               <div className="space-y-4">
                 <div>
+                  <label className="block font-display font-bold text-xs text-on-surface mb-1">Project Type</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setProjectType('apk')}
+                      className={`py-2 text-xs font-display font-bold border-2 rounded-lg transition-all active-squish ${
+                        projectType === 'apk'
+                          ? 'bg-primary text-on-primary border-on-background shadow-[2px_2px_0px_0px_rgba(22,29,31,1)]'
+                          : 'bg-white text-on-surface border-on-background/20 hover:border-on-background'
+                      }`}
+                    >
+                      APK Download
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProjectType('website')}
+                      className={`py-2 text-xs font-display font-bold border-2 rounded-lg transition-all active-squish ${
+                        projectType === 'website'
+                          ? 'bg-primary text-on-primary border-on-background shadow-[2px_2px_0px_0px_rgba(22,29,31,1)]'
+                          : 'bg-white text-on-surface border-on-background/20 hover:border-on-background'
+                      }`}
+                    >
+                      Live Website
+                    </button>
+                  </div>
+                </div>
+
+                {projectType === 'website' ? (
+                  <div>
+                    <label className="block font-display font-bold text-xs text-on-surface mb-1">Site URL</label>
+                    <input
+                      type="text"
+                      placeholder="https://learn-persian.vercel.app"
+                      value={siteUrl}
+                      onChange={(e) => setSiteUrl(e.target.value)}
+                      className="w-full bg-white border-2 border-on-background rounded-lg p-2.5 font-sans text-xs focus:ring-0 focus:border-primary outline-none transition-all"
+                    />
+                    <p className="text-[10px] text-on-surface-variant font-mono mt-1">
+                      Opens in a new browser tab when visitors click the launch button.
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                <div>
                   <label className="block font-display font-bold text-xs text-on-surface mb-1">APK Link (optional)</label>
                   <input
                     type="text"
@@ -710,6 +772,8 @@ export default function AdminPanel({
                     />
                   </div>
                 </div>
+                  </>
+                )}
 
                 {/* Screenshot upload container */}
                 <div className="space-y-3">
@@ -777,32 +841,59 @@ export default function AdminPanel({
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-12 gap-3.5 items-center">
-                      {/* Left: Mini phone mockup showing live feedback */}
+                      {/* Left: Live preview mockup */}
                       <div className="sm:col-span-5 flex flex-col items-center justify-center bg-white/40 p-2 rounded-lg border border-on-background/10">
-                        <p className="text-[9px] font-display font-bold text-on-surface-variant mb-1">Live Mobile Fit</p>
-                        <div className="w-24 bg-white border-2 border-on-background rounded-2xl p-1 shadow-[2px_2px_0px_0px_rgba(22,29,31,1)] relative overflow-hidden">
-                          {/* Notch */}
-                          <div className="absolute top-1.5 left-1/2 -translate-x-1/2 w-10 h-2 bg-on-background rounded-full z-20"></div>
-                          {/* Content display */}
-                          <div 
-                            className="relative overflow-hidden rounded-lg aspect-[9/19] flex items-center justify-center border border-on-background"
-                            style={{ backgroundColor: screenshotBgColor }}
-                          >
-                            <img 
-                              src={screenshotPreview} 
-                              alt="Live tuning" 
-                              className="w-full h-full select-none pointer-events-none" 
-                              style={{
-                                objectFit: screenshotFit,
-                                transform: `translate(${screenshotXOffset / 2.5}px, ${screenshotYOffset / 2.5}px) scale(${screenshotScale / 100}) rotate(${screenshotRotate}deg)`,
-                              }}
-                            />
-                          </div>
-                        </div>
+                        <p className="text-[9px] font-display font-bold text-on-surface-variant mb-1">
+                          Live {previewFrame === 'desktop' ? 'Desktop' : 'Mobile'} Fit
+                        </p>
+                        <PreviewFrameMockup
+                          project={{
+                            title: title || 'Preview',
+                            version: version || 'v1.0.0',
+                            screenshotUrl: screenshotPreview,
+                            screenshotFit,
+                            screenshotScale,
+                            screenshotXOffset,
+                            screenshotYOffset,
+                            screenshotBgColor,
+                            screenshotRotate,
+                            previewFrame,
+                          }}
+                          compact
+                          showVersionBadge={false}
+                        />
                       </div>
 
                       {/* Right: Sliders and Toggles */}
                       <div className="sm:col-span-7 space-y-2 text-xs">
+                        <div>
+                          <span className="block font-display font-bold text-[9px] text-on-surface-variant mb-0.5">Preview Frame</span>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setPreviewFrame('mobile')}
+                              className={`py-1 text-[9px] font-display font-bold border rounded-md transition-all active-squish ${
+                                previewFrame === 'mobile'
+                                  ? 'bg-primary text-on-primary border-on-background shadow-[1px_1px_0px_0px_rgba(22,29,31,1)] font-extrabold'
+                                  : 'bg-white text-on-surface border-on-background/20 hover:border-on-background'
+                              }`}
+                            >
+                              Mobile Phone
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPreviewFrame('desktop')}
+                              className={`py-1 text-[9px] font-display font-bold border rounded-md transition-all active-squish ${
+                                previewFrame === 'desktop'
+                                  ? 'bg-primary text-on-primary border-on-background shadow-[1px_1px_0px_0px_rgba(22,29,31,1)] font-extrabold'
+                                  : 'bg-white text-on-surface border-on-background/20 hover:border-on-background'
+                              }`}
+                            >
+                              Desktop Browser
+                            </button>
+                          </div>
+                        </div>
+
                         {/* Fit Mode Switcher */}
                         <div>
                           <span className="block font-display font-bold text-[9px] text-on-surface-variant mb-0.5">Fitting Mode</span>
